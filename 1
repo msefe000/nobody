@@ -21,7 +21,7 @@ adf.test(dY)
 acf(dY)
 pacf(dY)
 # Fit best ARIMA model automatically
-model <- auto.arima(Y)
+model <- auto.arima(Y)/arima(d.Y, order = c(1,1,4))M1<-arima(d.Y, order = c(1,1,4))summary(M1)coeftest(M1)
 summary(model)
 # Diagnostics
 checkresiduals(model)
@@ -47,6 +47,11 @@ X2 <- data$cpi
 dY  <- diff(Y)
 dX1 <- diff(X1)
 dX2 <- diff(X2)
+adf_Y <- ur.df(Y, type="trend", lags= 0)
+summary(adf_Y)
+VARselect(mydata, lag.max = 7, type = "const")
+lagselect <- VARselect(mydata, lag.max = 10, type = "const")
+print(VARselect(mydata, lag.max = 10, type = "const"))
 # Combine stationary variables
 var_data <- na.omit(cbind(dY, dX1, dX2))
 colnames(var_data) <- c("ppi","gdp","cpi")
