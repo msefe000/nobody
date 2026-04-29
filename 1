@@ -136,3 +136,54 @@ set.seed(123)
 returns <- rnorm(500)
 plot.ts(returns)
 plot(diff(returns))
+# setuprm(list = ls()) directory <- "C:/Econometrics/DataR/"
+# Install packagesPackageNames <- c("tidyverse", "stargazer", "magrittr", "haven", "plm")
+for(i in PackageNames){
+  if(!require(i, character.only = T)){
+    install.packages(i, dependencies = T)
+    require(i, character.only = T)
+  }
+} 
+JTRAIN <- read.csv(paste0(directory, 'JTRAIN.csv'))
+JTRAIN %<>% filter(!is.na(lscrap))
+JTRAIN %<>% select(fcode, year, lscrap, tothrs, d88, d89, grant, grant_1)
+JTRAIN %>% str
+JTRAIN %>% head(9)
+JTRAIN %>% stargazer(type = "text")
+model_ols <- plm(formula = lscrap ~ tothrs + d88 + d89 + grant + grant_1, 
+              data = JTRAIN, 
+              index = c("fcode", "year"), # c(group index, time index)
+              model = "pooling")  
+summary(model_ols)
+model_fe <- update(model_ols, model = "within", effect = "individual")
+model_fe <- plm(formula = lscrap ~ tothrs + d88 + d89 + grant + grant_1, 
+              data = JTRAIN, 
+              index = c("fcode", "year"), # c(group index, time index)
+              model = "within", effect = "individual") 
+summary(model_fe)
+ai <- fixef(model_fe, type = "dmean") # extract fixed effects using 'fixef'
+ai %>% head(10)
+summary(ai) # 'summary' shows the p-value table
+data.frame(ai) %>% stargazer(type = "text") 
+model_re <- update(model_ols, model = "random", random.method = "walhus")
+model_re <- plm(formula = lscrap ~ tothrs + d88 + d89 + grant + grant_1, 
+              data = JTRAIN, 
+              index = c("fcode", "year"), # c(group index, time index)
+              model = "random", random.method = "walhus")  
+summary(model_re)
+(sigma2_e <- model_re$ercomp$sigma2["idios"])
+(sigma2_u <- model_re$ercomp$sigma2["id"])
+(theta <- 1 - sqrt(sigma2_e / (sigma2_e + 3*sigma2_u)))
+summary(model_fe)
+model_dv <- update(model_ols, ~ . + factor(fcode))
+model_dv <- plm(formula = lscrap ~ tothrs + d88 + d89 + grant + grant_1 + factor(fcode),
+                data = JTRAIN, 
+                index = c("fcode", "year"), # c(group index, time index)
+                model = "pooling")  
+summary(model_dv)
+summary(model_dv)
+yhat <- fitted(model_dv)
+y <- pmodel.response(model_dv)
+(mss <- sum((yhat - mean(y))^2))
+(ess <- sum(resid(model_fe)^2))
+(rsquared <- mss / (mss + ess))
