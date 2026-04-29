@@ -1,0 +1,613 @@
+
+install.packages("tseries")
+library(tseries)
+install.packages("urca")
+library(urca)
+install.packages("lmtest")
+library(lmtest)
+install.packages("forecast")
+library(forecast)
+
+mydata<- read.csv("C:/Users/MAHE/Downloads/timeseries_ppi.csv")
+attach(mydata)
+
+Y <- ppi
+d.Y <- diff(Y)
+t <- yearqrt
+
+summary(Y)
+summary(d.Y)
+
+plot.ts(Y)
+plot.ts(d.Y)
+
+adf.test(Y, alternative="stationary", k=0)  # Fixed k lags
+adf.test(Y, alternative="explosive", k=0)
+ur.df(Y, type = "trend", lags = 0)  # urca: trend + lags
+summary(ur.df(Y, type = "trend", lags = 0))
+
+adf.test(d.Y, k=0)
+
+acf(Y)
+pacf(Y)
+
+acf(d.Y)
+pacf(d.Y)
+
+arima(d.Y, order = c(1,1,4))
+M1<-arima(d.Y, order = c(1,1,4))
+summary(M1)
+coeftest(M1)
+
+arima(d.Y, order = c(3,1,4))
+M2<-arima(d.Y, order = c(3,1,4))
+summary(M2)
+coeftest(M2)
+
+ar_roots <- arroots(M1)
+print(ar_roots)
+plot(ar_roots)
+ma_roots <- maroots(M1)
+print(ma_roots)
+plot(ma_roots)
+
+par(mfrow=c(2,2))
+plot(M1, type="ar", main="AR Roots")
+plot(M1, type="ma", main="MA Roots") 
+plot(M1, type="both", main="AR+MA Roots")
+acf(residuals(M1), main="Residuals ACF")  # Ljung-Box test next
+
+
+#1.Ljung-Box Test (Autocorrelation);Tests if residuals are white noise (null: no serial correlation).
+res <- residuals(M1)
+Box.test(res, lag = 20, type = "Ljung-Box")
+checkresiduals(M1)
+
+#2.Normality Test (Jarque-Bera);Checks if residuals are normally distributed.
+jarque.bera.test(res)
+
+#3.ARCH Test (Heteroscedasticity);Detects changing variance in residuals.
+install.packages("FinTS")
+library(FinTS)
+ArchTest(res, lags = 12)
+
+# ARIMA(1,1,4) forecasting
+mydata.M1 <- arima(d.Y, order = c(1,1,4))
+mydata.pred1 <- predict(mydata.M1, n.ahead=100)
+plot.ts(Y)
+lines(mydata.pred1$pred, col="blue")
+lines(mydata.pred1$pred+2*mydata.pred1$se, col="red")
+lines(mydata.pred1$pred-2*mydata.pred1$se, col="red")
+
+# ARIMA(3,1,4) forecasting
+mydata.M2 <- arima(d.Y, order = c(3,1,4))
+mydata.pred1 <- predict(mydata.M1, n.ahead=100)
+plot.ts(d.Y)
+lines(mydata.pred1$pred, col="blue")
+lines(mydata.pred1$pred+2*mydata.pred1$se, col="red")
+lines(mydata.pred1$pred-2*mydata.pred1$se, col="red")
+
+###VAR Model##
+
+install.packages("vars")
+library(vars)
+install.packages("moments")
+library(moments)
+
+
+mydata<- read.csv("C:/Users/MAHE/Downloads/timeseries_ppi.csv")
+attach(mydata)
+
+# Defining variables
+Y <- ppi
+d.Y <- diff(Y)
+
+X1<-gdp
+d.X1<-diff(X1)
+
+X2<-cpi
+d.X2<-diff(X2)
+
+t <- yearqrt
+
+adf.test(Y, k=0)
+adf.test(d.Y, k=0)
+adf.test(X1, k=0)
+adf.test(d.X1, k=0)
+adf.test(X2, k=0)
+adf.test(d.X2, k=0)
+
+
+adf_Y <- ur.df(Y, type="trend", lags= 0)
+summary(adf_Y)
+adf_X1 <- ur.df(X1, type="trend", lags= 0)
+summary(adf_Y)
+adf_X2 <- ur.df(X2, type="trend", lags= 0)
+summary(adf_Y)
+
+#Step 2. Select the Optimal Lag Length and Fit the VAR Model
+VARselect(mydata, lag.max = 10, type = "const")
+print(VARselect(mydata, lag.max = 10, type = "const"))
+
+#Select specific variables (replace with your column names)
+selected_vars <- mydata[, c("ppi", "gdp")]
+
+# Run VARselect on selected variables only
+lag_select <- VARselect(selected_vars, lag.max = 10, type = "const")
+print(lag_select$selection) # Choose lag based on AIC/HQ/SC
+
+#Step 3. VAR Estimation
+var_model <- VAR(selected_vars, p = 4, type = "const")
+summary(var_model)
+
+#Step 4. Diagnostics
+serial.test(var_model, lags.pt = 16, type = "PT.asymptotic")
+roots(var_model)  # Stability plot
+plot(roots(var_model))
+arch.test(var_model, lags.multi = 5)
+normality.test(var_model)
+
+#Step 5. Forecasting
+forecast <- predict(var_model, n.ahead = 8, ci=0.95)
+# Adjust the margins
+par(mar = c(4, 4, 2, 1))  # Adjust the margins as necessary
+# Plot the forecast
+plot(forecast)
+
+#Step 6. Impulse Response Functions (IRF)
+irf_plot <- irf(var_model, impulse = "ppi", response = "gdp", 
+                n.ahead = 10, boot = TRUE, ci = 0.95, runs = 100)
+plot(irf_plot)
+
+#Step 7.Forecast Error Variance Decomposition (FEVD)
+fevd_plot <- fevd(var_model, n.ahead = 10)
+plot(fevd_plot)
+
+
+##Granger causality tests
+causality(var_model, cause = "gdp")
+
+##Step 1: Data Preparation and Package Installation
+
+install.packages("ARDL")
+install.packages("ggplot2") # For plotting (optional)
+install.packages("dplyr")   # For data manipulation (optional)
+
+# Load the libraries
+library(ARDL)
+library(ggplot2)
+library(dplyr)
+library(urca)
+library(tseries)
+library(lmtest)
+# Load and prepare your data (example using built-in data or a CSV)
+# Example: Using the 'denmark' dataset from the ARDL package
+data(denmark)
+mydata <- denmark
+View(denmark)
+
+##Step 2: Unit Root Tests
+##Before running the ARDL model, it is a crucial to confirm that none of your variables are integrated of order I(2) or higher. Variables can be I(0), I(1), or a combination of both. You can use the Augmented Dickey-Fuller (ADF) or Phillips-Perron (PP) tests.
+adf.test(denmark$LRM)
+adf.test(diff(denmark$LRM))
+adf.test(denmark$LRY)
+adf.test(diff(denmark$LRY))
+adf.test(denmark$LPY)
+adf.test(diff(denmark$LPY))
+adf.test(denmark$IBO)
+adf.test(diff(denmark$IBO))
+adf.test(denmark$IDE)
+adf.test(diff(denmark$IDE))
+
+##Step 3: Optimal Lag Selection and Model Estimation
+# Define the model formula (e.g., LRM as dependent, LRY, IBO, IDE as independent)
+model <- LRM ~ LRY + IBO + IDE
+
+# Automatically select the optimal ARDL model based on AIC or BIC
+# maxlag sets the maximum possible lag for each variable
+ardl_model_selected <- auto_ardl(model, data = denmark, max_order = c(5,4,4,4))
+
+# View the summary of the selected optimal model
+summary(ardl_model_selected)
+
+# The output shows the optimal lags chosen for each variable (e.g., ARDL(p, q1, ..., qk))
+# You can view the chosen lags directly
+# ardl_model_selected$selection
+
+##Step 4: Cointegration (Bounds) Test
+##Pesaran-Shin-Smith test checks for cointegration when variables are I(0), I(1), or mixed, without pre-testing stationarity.
+# The 'case' parameter depends on the deterministic components (intercept and/or trend) in your model
+# Case 3 (unrestricted intercept, no trend) is common, but adjust as needed.
+
+bounds_f_test(ardl_model_selected$best_model, case = 3)
+
+# You can also perform the t-bounds test
+bounds_t_test(ardl_model_selected$best_model, case = 3)
+
+##Interpretation:
+#F/t-statistic < lower I(0) bound: No cointegration.(fail to reject H0)
+#F/t-statistic > upper I(1) bound: Cointegration exists. (reject H0: no cointegration)
+#Between bounds: Inconclusive
+
+##Step 5: Long-Run and Short-Run Analysis
+##If cointegration is confirmed, you can analyze the long-run multipliers and the short-run dynamics (Error Correction Model, ECM). 
+# Extract the long-run coefficients
+long_run <- multipliers(ardl_model_selected$best_model)
+print(long_run)
+
+#Error Correction Model (ECM): The uecm() function estimates the unrestricted error correction form. The coefficient on the lagged dependent variable (the error correction term, ECT) should be negative and statistically significant. 
+# Estimate the Unrestricted ECM
+uecm_model <- uecm(ardl_model_selected$best_model)
+summary(uecm_model)
+
+##Step 6: Post-Estimation Diagnostics on the residuals to ensure the model's validity.
+# Check for autocorrelation (Breusch-Godfrey LM test)
+#p-value > 0.05: No autocorrelation (fail to reject H0)
+#p-value < 0.05: Autocorrelation present
+
+bgtest(ardl_model_selected$best_model, order = 3)
+
+# Check for heteroskedasticity (Breusch-Pagan)
+bptest(ardl_model_selected$best_model)
+
+#Check Normality (Jarque-Bera)
+jarque.bera.test(residuals(ardl_model_selected$best_model))
+
+# Check for parameter stability (CUSUM or CUSUMSQ tests)
+ardl_model_selected <- auto_ardl(model, data = denmark, max_order = c(5,4,4,4))
+res <- residuals(ardl_model_selected$best_model)
+n <- length(res)
+cusum <- cumsum(res / sd(res))  # CUSUM (parameter stability)
+cusum_sq <- cumsum(res^2) / sum(res^2) # CUSUMSQ (variance stability)
+par(mfrow=c(2,1))
+plot(1:n, cusum, type="l", main="CUSUM Test", ylab="CUSUM", xlab="Time", col="blue", lwd=2)
+abline(h=c(-3,3), col="red", lty=2, lwd=2)
+plot(1:n, cusum_sq, type="l", main="CUSUMSQ Test", ylab="CUSUMSQ", xlab="Time", col="blue", lwd=2)
+abline(h=c(0.134, 0.866), col="red", lty=2, lwd=2)
+par(mfrow=c(1,1))
+
+# 1. Check for missing values
+summary(mydata)  # Look for NA counts
+any(is.na(mydata))  # TRUE = problem exists
+
+# 2. Check each column specifically
+colSums(is.na(mydata))  # Shows NAs per column
+
+# 3. Remove rows with ANY missing values
+mydata_clean <- na.omit(mydata)
+
+# 4. Verify no NAs remain
+sum(is.na(mydata_clean))  # Should be 0
+
+install.packages("rmarkdown")
+library (rmarkdown)
+
+# Install the ARDL package if you haven't already
+# install.packages("ARDL")
+
+# Load the required libraries
+library(ARDL)
+library(dynlm) # Used internally by ARDL for time series regression
+
+# Load the example data
+data(denmark)
+# View the first few rows of the data
+head(denmark)
+
+# Find the best ARDL specification up to a maximum order of 5 for all variables
+# The formula is LRM ~ LRY + IBO + IDE
+models <- auto_ardl(LRM ~ LRY + IBO + IDE, data = denmark, max_order = 5)
+
+# View the top 20 models
+print(models$top_orders)
+
+# Access the best model found by the function
+best_ardl_model <- models$best_model
+summary(best_ardl_model)
+
+# Convert the ARDL model to a UECM
+uecm_model <- uecm(best_ardl_model)
+
+# Summarize the UECM results to see short-run dynamics and the error correction term
+summary(uecm_model)
+
+# Estimate the RECM (example using case 2, where constant joins the long-run relation)
+recm_model <- recm(uecm_model, case = 2)
+
+# Summarize the restricted ECM
+summary(recm_model)
+
+# Perform the bounds F-test for no cointegration
+bounds_f_test(ardl_3132, case = 2)
+# The p-value helps determine if a long-run relationship exists
+
+# Short-run multipliers
+sr_multipliers <- multipliers(best_ardl_model, type = "sr")
+print(sr_multipliers)
+
+# Long-run multipliers
+lr_multipliers <- multipliers(best_ardl_model)
+print(lr_multipliers)
+
+### Install and Load Required Packages 
+install.packages("tseries")
+library(tseries)
+install.packages("rugarch")
+library(rugarch)
+install.packages("FinTS") 
+library(FinTS)
+
+# Generate simulated data (simulating returns)
+set.seed(123)
+returns <- rnorm(500)
+plot.ts(returns)
+plot(diff(returns))
+
+### ARCH Effect Test (LM Test):  to check if ARCH effects exist in data.
+# Perform Lagrange Multiplier (LM) test for ARCH effects
+# H0: No ARCH effects
+ArchTest(returns, lags = 1)
+# If p-value < 0.05, ARCH effects are present.
+
+# Fit an ARCH(1) model: order = c(GARCH_lag, ARCH_lag)
+# For ARCH(1), set GARCH lag to 0 and ARCH lag to 1
+arch_model <- garch(returns, order = c(0, 1))
+
+# Summary of the model
+summary(arch_model)
+
+# Also Specify the ARCH(1) model
+# garchOrder = c(1, 0) defines an ARCH(1) model
+spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 0)),
+  mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "norm"
+)
+
+# Fit the model to your data
+fit <- ugarchfit(spec = spec, data = returns)
+
+# View the results (coefficients, p-values, and info criteria)
+show(fit)
+
+# Forecast the next 5 periods
+forecast <- ugarchforecast(fit, n.ahead = 5)
+print(forecast)
+
+# Diagnostic Tests
+plot(fit)
+infocriteria(fit)
+### Advanced ARCH Modeling with (Using rugarch) 
+#The rugarch package is the modern standard for volatility modeling. 
+#An ARCH(q) model is a GARCH model where the GARCH order is 0.
+#garchOrder = c(q, 0) defines an ARCH model of order q.
+#ARCH(q): Relates current volatility to past squared returns.
+#GARCH(p, q): Relates current volatility to both past squared returns and past volatilities. 
+
+# 1. Specify the GARCH(1,1) model
+# variance.model: We choose a standard GARCH ('sGARCH') with order (1,1)
+# mean.model: We assume a constant mean (ARIMA(0,0))
+# distribution.model: We use the Student's t-distribution ('std')
+garch_spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+  mean.model     = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "norm"
+)
+# 2. Fit the model 
+garch_fit <- ugarchfit(spec = garch_spec, data = returns)
+
+# 3. Print the summary of the results
+# This output provides the estimated coefficients, standard errors, and significance tests
+print(garch_fit)
+
+# 4.Volatility Forecasting 
+# Forecast volatility for the next 10 periods
+forecast <- ugarchforecast(fit, n.ahead = 10)
+
+# Extract and plot the predicted sigma (standard deviation)
+plot(sigma(forecast))
+print(forecast)
+###Popular GARCH Model Extensions
+# EGARCH (Exponential GARCH): Models asymmetric effects where negative shocks (bad news) often increase volatility more than positive shocks (good news) of the same magnitude.
+# GJR-GARCH: Another common model for "leverage effects" that uses an indicator function to give more weight to negative residuals.
+
+# 1. Fitting a GJR-GARCH (1,1) model with a Student’s t-distribution for residuals, which is a standard approach for financial return data. 
+# Specify the model extension
+# variance.model: 'gjrGARCH' is the extension name
+# distribution.model: 'sstd' (Skewed Student-t) handles fat tails and asymmetry
+gjrgarch_spec <- ugarchspec(
+  variance.model = list(model = "gjrGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(1, 1)),
+  distribution.model = "sstd"
+)
+
+fit <- ugarchfit(spec = spec, data = sp500ret)
+print(fit)
+plot(fit, which = "all") # Displays volatility, residuals, and ACF plots
+
+# 2. EGARCH Model
+# Specify Model: Variance model is "eGARCH"
+egarch_spec <- ugarchspec(
+  variance.model = list(model = "eGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "sstd" # Skewed Student's t
+)
+egarch_fit <- ugarchfit(spec = egarch_spec, data = returns)
+print(egarch_fit)
+plot(egarch_fit, which = 3)
+egarch_forecast <- ugarchforecast(egarch_fit, n.ahead = 5)
+print(egarch_forecast)
+
+# Panel Data Models
+  
+# Outline:
+#   Pooled OLS estimator
+#   Fixed effects within estimator
+#   Random effects estimator
+#   Hausman test for fixed versus random effects
+#   Dummy variables regression
+#   Between estimator
+#   First differences estimator
+
+# Data files: 
+#   JTRAIN.csv
+
+# setup
+rm(list = ls()) 
+directory <- "C:/Econometrics/DataR/"
+
+# Install packages
+PackageNames <- c("tidyverse", "stargazer", "magrittr", "haven", "plm")
+for(i in PackageNames){
+  if(!require(i, character.only = T)){
+    install.packages(i, dependencies = T)
+    require(i, character.only = T)
+  }
+} 
+
+# Example: Effect of training grants on firm scrap rate -------------------
+JTRAIN <- read.csv(paste0(directory, 'JTRAIN.csv'))
+
+# Drop missing observations for dependent variable
+JTRAIN %<>% filter(!is.na(lscrap))
+
+# Keep the variables needed
+JTRAIN %<>% select(fcode, year, lscrap, tothrs, d88, d89, grant, grant_1)
+
+# Describe and summarize
+JTRAIN %>% str
+JTRAIN %>% head(9)
+JTRAIN %>% stargazer(type = "text")
+
+# Pooled OLS, between, and first differences estimator --------------------
+
+# Pooled OLS estimator
+model_ols <- plm(formula = lscrap ~ tothrs + d88 + d89 + grant + grant_1, 
+              data = JTRAIN, 
+              index = c("fcode", "year"), # c(group index, time index)
+              model = "pooling")  
+summary(model_ols)
+              
+# Fixed effects within estimator ------------------------------------------
+  
+# Fixed effects within estimator
+# model_fe <- update(model_ols, model = "within", effect = "individual")
+model_fe <- plm(formula = lscrap ~ tothrs + d88 + d89 + grant + grant_1, 
+              data = JTRAIN, 
+              index = c("fcode", "year"), # c(group index, time index)
+              model = "within", effect = "individual") 
+summary(model_fe)
+
+# Summarize the individual specific effects a_i
+ai <- fixef(model_fe, type = "dmean") # extract fixed effects using 'fixef'
+ai %>% head(10)
+summary(ai) # 'summary' shows the p-value table
+data.frame(ai) %>% stargazer(type = "text") # summarize
+
+# Random effects estimator ------------------------------------------------
+
+# Random effects estimator
+# model_re <- update(model_ols, model = "random", random.method = "walhus")
+model_re <- plm(formula = lscrap ~ tothrs + d88 + d89 + grant + grant_1, 
+              data = JTRAIN, 
+              index = c("fcode", "year"), # c(group index, time index)
+              model = "random", random.method = "walhus")  
+summary(model_re)
+# The theta parameter is listed in the summary
+
+# Calculate the random effects parameter theta
+(sigma2_e <- model_re$ercomp$sigma2["idios"])
+(sigma2_u <- model_re$ercomp$sigma2["id"])
+(theta <- 1 - sqrt(sigma2_e / (sigma2_e + 3*sigma2_u)))
+
+# Hausman test for fixed versus random effects ----------------------------
+  
+# The Hausman test is used to decide whether to use fixed effects or random effects.
+# H0: FE coefficients are not significantly different from the RE coefficients
+# Ha: FE coefficients are significantly different from the RE coefficients
+
+# Fixed effects estimator
+summary(model_fe)
+
+# Random effects estimator
+summary(model_re)
+
+# Hausman test for fixed versus random effects
+phtest(model_fe, model_re)
+# If the Hausman test statistic is insignificant, use RE estimator because it is efficient
+# If the Hausman test statistic is significant, use FE estimator because it is consistent
+
+# Dummy variables regression ----------------------------------------------
+
+# Dummy variables regression with fixed effects
+# model_dv <- update(model_ols, ~ . + factor(fcode))
+model_dv <- plm(formula = lscrap ~ tothrs + d88 + d89 + grant + grant_1 + factor(fcode),
+                data = JTRAIN, 
+                index = c("fcode", "year"), # c(group index, time index)
+                model = "pooling")  
+summary(model_dv)
+# factor(fcode) creates one dummy variable for each fcode
+
+# R-squared for fixed effects estimator and dummy variables regression
+summary(model_fe)
+yhat <- fitted(model_fe)
+y <- pmodel.response(model_fe) # demeaned y
+(mss <- sum((yhat - mean(y))^2))
+(ess <- sum(resid(model_fe)^2))
+(rsquared0 <- mss / (mss + ess))
+
+summary(model_dv)
+yhat <- fitted(model_dv)
+y <- pmodel.response(model_dv)
+(mss <- sum((yhat - mean(y))^2))
+(ess <- sum(resid(model_fe)^2))
+(rsquared <- mss / (mss + ess))
+
+# Panel data where fcode is the cross sectional dimension and year is the time series dimension
+
+# Number of observations
+JTRAIN %>% group_by(fcode) %>% summarize(n = n()) # number of obs by 'fcode'
+JTRAIN %>% group_by(year) %>% summarize(n = n()) # number of obs by 'year'
+
+# Overall variations
+JTRAIN %>% 
+  select(lscrap, tothrs, d88, d89, grant, grant_1) %>% 
+  mutate_all(function(x) {x - mean(x, na.rm= T)}) %>% # variable - overall mean
+  as.data.frame %>% 
+  stargazer(type = "text", omit.summary.stat = "mean", digits = 2)
+
+# Between variations
+JTRAIN %>% group_by(fcode) %>%
+  select(lscrap, tothrs, d88, d89, grant, grant_1) %>% 
+  summarize_all(mean) %>% 
+  as.data.frame %>% 
+  select(-fcode) %>% 
+  stargazer(type = "text", digits = 2)
+
+# Within variations
+JTRAIN %>% group_by(fcode) %>% 
+  select(lscrap, tothrs, d88, d89, grant, grant_1) %>% 
+  mutate_all(function(x) {x - mean(x)}) %>% # demean
+  as.data.frame %>% 
+  select(-fcode) %>%
+  stargazer(type = "text", omit.summary.stat = "mean", digits =2)
+
+# Between estimator
+model_be <- update(model_ols, model = "between")
+summary(model_be)
+
+# Taking first differences
+diff <- function(x) {x - dplyr::lag(x)}
+JTRAIN %<>% 
+  group_by(fcode) %>%
+  mutate(dlscrap = diff(lscrap),
+         dtothrs = diff(tothrs),
+         dgrant = diff(grant)) %>%
+  ungroup()
+
+# First differences estimator
+model_fd <- lm(dlscrap ~ dtothrs + dgrant, JTRAIN)
+summary(model_fd)
+
+
+
