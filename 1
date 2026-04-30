@@ -272,31 +272,18 @@ show(fit)
 plot(fit)
 forecast_garch <- ugarchforecast(fit, n.ahead = 10)
 plot(sigma(forecast_garch))
-data <- read.csv("JTRAIN.csv")
-df <- data %>%
-  select(fcode, year, lscrap, tothrs, d88, d89, grant, grant_1) %>%
-  na.omit()
-pdata <- pdata.frame(df, index = c("fcode","year"))
-# Pooled OLS
-ols <- plm(lscrap ~ tothrs + d88 + d89 + grant + grant_1,
-           data = pdata, model = "pooling")
-summary(ols)
-# Fixed Effects
-fe <- plm(lscrap ~ tothrs + d88 + d89 + grant + grant_1,
-          data = pdata, model = "within")
-summary(fe)
-# Random Effects
-re <- plm(lscrap ~ tothrs + d88 + d89 + grant + grant_1,
-          data = pdata, model = "random")
-summary(re)
-# Hausman Test
-phtest(fe, re)
-# First Difference
-df <- df %>%
-  group_by(fcode) %>%
-  mutate(dlscrap = lscrap - lag(lscrap),
-         dtothrs = tothrs - lag(tothrs),
-         dgrant  = grant - lag(grant)) %>%
-  na.omit()
-fd <- lm(dlscrap ~ dtothrs + dgrant, data = df)
-summary(fd)
+# Load package
+library(urca)
+library(tsDyn)
+# Cointegration test
+Y <- data[, c("ppi","gdp","cpi")]
+jo <- ca.jo(Y, type = "trace", K = 2)
+summary(jo)
+# VECM (r = 1)
+vecm <- VECM(Y, lag = 2, r = 1)
+summary(vecm)
+# Convert to VAR
+vecm_var <- vec2var(jo, r = 1)
+# IRF + FEVD
+plot(irf(vecm_var))
+plot(fevd(vecm_var))
