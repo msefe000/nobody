@@ -189,4 +189,114 @@ df <- df %>%
 fd <- lm(dlscrap ~ dtothrs + dgrant, data = df)
 summary(fd)
 
+data <- read.csv("timeseries_ppi.csv")
+Y <- data$ppi
+plot.ts(Y, main="Original Series")
+adf.test(Y)
+dY <- diff(Y)
+plot.ts(dY, main="Differenced Series")
+adf.test(dY)
+acf(dY)
+pacf(dY)
+# Correct model fitting
+model_arima <- auto.arima(Y)
+summary(model_arima)
+checkresiduals(model_arima)
+res <- residuals(model_arima)
+jarque.bera.test(res)
+ArchTest(res)
+forecast_values <- forecast(model_arima, h=20)
+plot(forecast_values)
 
+data <- read.csv("timeseries_ppi.csv")
+Y  <- data$ppi
+X1 <- data$gdp
+X2 <- data$cpi
+dY  <- diff(Y)
+dX1 <- diff(X1)
+dX2 <- diff(X2)
+var_data <- na.omit(cbind(dY, dX1, dX2))
+colnames(var_data) <- c("ppi","gdp","cpi")
+# Stationarity
+adf.test(dY)
+adf.test(dX1)
+adf.test(dX2)
+# Lag selection (FIXED: removed wrong object "mydata")
+lag_select <- VARselect(var_data, lag.max = 10, type = "const")
+lag_select$selection
+# Fit VAR
+model_var <- VAR(var_data, p = 2, type = "const")
+summary(model_var)
+# Diagnostics
+serial.test(model_var, lags.pt = 16)
+arch.test(model_var)
+normality.test(model_var)
+roots(model_var)
+# Forecast
+forecast_var <- predict(model_var, n.ahead = 8)
+plot(forecast_var)
+# IRF
+irf_result <- irf(model_var, impulse = "ppi", response = "gdp")
+plot(irf_result)
+# FEVD
+fevd_result <- fevd(model_var)
+plot(fevd_result)
+# Granger
+causality(model_var, cause = "gdp")
+data(denmark)
+df <- denmark
+adf.test(df$LRM)
+adf.test(diff(df$LRM))
+model_ardl <- auto_ardl(LRM ~ LRY + IBO + IDE, data = df, max_order = c(5,4,4,4))
+summary(model_ardl)
+bounds_f_test(model_ardl$best_model, case = 3)
+multipliers(model_ardl$best_model)
+ecm <- uecm(model_ardl$best_model)
+summary(ecm)
+bgtest(model_ardl$best_model)
+bptest(model_ardl$best_model)
+jarque.bera.test(residuals(model_ardl$best_model))
+data <- read.csv("nifty.csv")
+price <- as.numeric(data$Close)
+returns <- diff(log(price))
+returns <- na.omit(returns)
+plot.ts(returns, main="Returns")
+ArchTest(returns, lags = 5)
+spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1,1)),
+  mean.model = list(armaOrder = c(0,0)),
+  distribution.model = "std"
+)
+fit <- ugarchfit(spec = spec, data = returns)
+show(fit)
+plot(fit)
+forecast_garch <- ugarchforecast(fit, n.ahead = 10)
+plot(sigma(forecast_garch))
+data <- read.csv("JTRAIN.csv")
+df <- data %>%
+  select(fcode, year, lscrap, tothrs, d88, d89, grant, grant_1) %>%
+  na.omit()
+pdata <- pdata.frame(df, index = c("fcode","year"))
+# Pooled OLS
+ols <- plm(lscrap ~ tothrs + d88 + d89 + grant + grant_1,
+           data = pdata, model = "pooling")
+summary(ols)
+# Fixed Effects
+fe <- plm(lscrap ~ tothrs + d88 + d89 + grant + grant_1,
+          data = pdata, model = "within")
+summary(fe)
+# Random Effects
+re <- plm(lscrap ~ tothrs + d88 + d89 + grant + grant_1,
+          data = pdata, model = "random")
+summary(re)
+# Hausman Test
+phtest(fe, re)
+# First Difference
+df <- df %>%
+  group_by(fcode) %>%
+  mutate(dlscrap = lscrap - lag(lscrap),
+         dtothrs = tothrs - lag(tothrs),
+         dgrant  = grant - lag(grant)) %>%
+  na.omit()
+fd <- lm(dlscrap ~ dtothrs + dgrant, data = df)
+summary(fd)
