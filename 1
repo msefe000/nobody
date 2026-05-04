@@ -1,289 +1,159 @@
-# Install packages (run once)
-install.packages(c("tseries","forecast","lmtest","urca","FinTS"))
-# Load libraries
-library(tseries)
-library(forecast)
-library(lmtest)
-library(urca)
-library(FinTS)
-# Load data
-data <- read.csv("C:/Users/MAHE/Downloads/timeseries_ppi.csv")
-Y <- data$ppi
-# Plot original series
-plot.ts(Y, main="Original Series")
-# Stationarity test
-adf.test(Y)
-# Differencing
-dY <- diff(Y)
-plot.ts(dY, main="Differenced Series")
-adf.test(dY)
-# ACF & PACF
-acf(dY)
-pacf(dY)
-# Fit best ARIMA model automatically
-model <- auto.arima(Y)/arima(d.Y, order = c(1,1,4))M1<-arima(d.Y, order = c(1,1,4))summary(M1)coeftest(M1)
-summary(model)
-# Diagnostics
-checkresiduals(model)
-# Extra tests
-res <- residuals(model)
-jarque.bera.test(res)
-ArchTest(res)
-# Forecast
-forecast_values <- forecast(model, h=20)
-plot(forecast_values)
-# Install packages (run once)
-install.packages(c("vars","tseries"))
-# Load libraries
-library(vars)
-library(tseries)
-# Load data
-data <- read.csv("C:/Users/MAHE/Downloads/timeseries_ppi.csv")
-# Select variables
-Y  <- data$ppi
-X1 <- data$gdp
-X2 <- data$cpi
-# Convert to stationary (first difference)
-dY  <- diff(Y)
-dX1 <- diff(X1)
-dX2 <- diff(X2)
-adf_Y <- ur.df(Y, type="trend", lags= 0)
-summary(adf_Y)
-VARselect(mydata, lag.max = 7, type = "const")
-lagselect <- VARselect(mydata, lag.max = 10, type = "const")
-print(VARselect(mydata, lag.max = 10, type = "const"))
-# Combine stationary variables
-var_data <- na.omit(cbind(dY, dX1, dX2))
-colnames(var_data) <- c("ppi","gdp","cpi")
-# Step 1: Stationarity check
-adf.test(dY)
-adf.test(dX1)
-adf.test(dX2)
-# Step 2: Lag selection
-lag_select <- VARselect(var_data, lag.max = 10, type = "const")
-lag_select$selection   # choose lag (AIC preferred)
-# Step 3: Estimate VAR model
-model <- VAR(var_data, p = 2, type = "const")  # change p based on above
-summary(model)
-# Step 4: Diagnostics
-serial.test(model, lags.pt = 16, type = "PT.asymptotic")
-arch.test(model)
-normality.test(model)
-roots(model)   # stability check
-# Step 5: Forecast
-forecast_values <- predict(model, n.ahead = 8)
-plot(forecast_values)
-# Step 6: Impulse Response Function
-irf_result <- irf(model, impulse = "ppi", response = "gdp", n.ahead = 10)
-plot(irf_result)
-# Step 7: Variance Decomposition
-fevd_result <- fevd(model, n.ahead = 10)
-plot(fevd_result)
-# Step 8: Granger Causality
-causality(model, cause = "gdp")
-# Install packages (run once)
-install.packages(c("ARDL","tseries","lmtest"))
-# Load libraries
-library(ARDL)
-library(tseries)
-library(lmtest)
-# Load data (example dataset)
-data(denmark)
-df <- denmark
-# Step 1: Unit root test (check stationarity)
-adf.test(df$LRM)
-adf.test(diff(df$LRM))
-adf.test(df$LRY)
-adf.test(diff(df$LRY))
-adf.test(df$IBO)
-adf.test(diff(df$IBO))
-adf.test(df$IDE)
-adf.test(diff(df$IDE))
-# Step 2: ARDL model selection
-model <- LRM ~ LRY + IBO + IDE
-ardl_model <- auto_ardl(model, data = df, max_order = c(5,4,4,4))
-summary(ardl_model)
-# Step 3: Bounds test (cointegration)
-bounds_f_test(ardl_model$best_model, case = 3)
-# Step 4: Long-run relationship
-multipliers(ardl_model$best_model)
-# Step 5: Short-run dynamics (ECM)
-ecm <- uecm(ardl_model$best_model)
-summary(ecm)
-# Step 6: Diagnostics
-bgtest(ardl_model$best_model)                 # autocorrelation
-bptest(ardl_model$best_model)                 # heteroskedasticity
-jarque.bera.test(residuals(ardl_model$best_model))  # normality
-# Install packages (run once)
-install.packages(c("rugarch","tseries","FinTS"))
-# Load libraries
-library(rugarch)
-library(tseries)
-library(FinTS)
-# Load your dataset
-data <- read.csv("C:/Users/MAHE/Downloads/nifty.csv")
-# Convert closing price to numeric (if needed)
-price <- as.numeric(data$Close)
-# Step 1: Calculate Returns (log returns preferred)
-returns <- diff(log(price))
-# Remove NA
-returns <- na.omit(returns)
-# Plot returns
-plot.ts(returns, main="NIFTY Returns")
-# Step 2: Check ARCH effect
-ArchTest(returns, lags = 5)
-# Step 3: Fit GARCH(1,1) Model
-spec <- ugarchspec(
-  variance.model = list(model = "sGARCH", garchOrder = c(1,1)),
-  mean.model = list(armaOrder = c(0,0)),
-  distribution.model = "std"
-)
-fit <- ugarchfit(spec = spec, data = returns)
-show(fit)
-# Step 4: Diagnostics
-plot(fit)
-infocriteria(fit)
-# Step 5: Forecast volatility
-forecast <- ugarchforecast(fit, n.ahead = 10)
-# Plot predicted volatility
-plot(sigma(forecast))
-print(forecast)
-# Install packages (run once)
-install.packages(c("plm","dplyr"))
-# Load libraries
-library(plm)
-library(dplyr)
-# Load data
-data <- read.csv("C:/Econometrics/DataR/JTRAIN.csv")
-# Keep required variables
-df <- data %>%
-  select(fcode, year, lscrap, tothrs, d88, d89, grant, grant_1) %>%
-  na.omit()
-# Convert to panel data
-pdata <- pdata.frame(df, index = c("fcode","year"))
-# 1. Pooled OLS
-ols <- plm(lscrap ~ tothrs + d88 + d89 + grant + grant_1,
-           data = pdata, model = "pooling")
-summary(ols)
-# 2. Fixed Effects (FE)
-fe <- plm(lscrap ~ tothrs + d88 + d89 + grant + grant_1,
-          data = pdata, model = "within")
-summary(fe)
-# 3. Random Effects (RE)
-re <- plm(lscrap ~ tothrs + d88 + d89 + grant + grant_1,
-          data = pdata, model = "random")
-summary(re)
-# 4. Hausman Test
-phtest(fe, re)
-# 5. Between Estimator
-be <- plm(lscrap ~ tothrs + grant,
-          data = pdata, model = "between")
-summary(be)
-# 6. First Difference Model
-df <- df %>%
-  group_by(fcode) %>%
-  mutate(dlscrap = lscrap - lag(lscrap),
-         dtothrs = tothrs - lag(tothrs),
-         dgrant  = grant - lag(grant)) %>%
-  na.omit()
-fd <- lm(dlscrap ~ dtothrs + dgrant, data = df)
-summary(fd)
+odd ratio:
+exp(coef(logit_model)
 
-data <- read.csv("timeseries_ppi.csv")
-Y <- data$ppi
-plot.ts(Y, main="Original Series")
-adf.test(Y)
-dY <- diff(Y)
-plot.ts(dY, main="Differenced Series")
-adf.test(dY)
-acf(dY)
-pacf(dY)
-# Correct model fitting
-model_arima <- auto.arima(Y)
-summary(model_arima)
-checkresiduals(model_arima)
-res <- residuals(model_arima)
-jarque.bera.test(res)
-ArchTest(res)
-forecast_values <- forecast(model_arima, h=20)
-plot(forecast_values)
+pseudo r:
+install.packages("DescTools")
+library(DescTools)
+PseudoR2(logit_model, which= "McFadden")
 
-data <- read.csv("timeseries_ppi.csv")
-Y  <- data$ppi
-X1 <- data$gdp
-X2 <- data$cpi
-dY  <- diff(Y)
-dX1 <- diff(X1)
-dX2 <- diff(X2)
-var_data <- na.omit(cbind(dY, dX1, dX2))
-colnames(var_data) <- c("ppi","gdp","cpi")
-# Stationarity
-adf.test(dY)
-adf.test(dX1)
-adf.test(dX2)
-# Lag selection (FIXED: removed wrong object "mydata")
-lag_select <- VARselect(var_data, lag.max = 10, type = "const")
-lag_select$selection
-# Fit VAR
-model_var <- VAR(var_data, p = 2, type = "const")
-summary(model_var)
-# Diagnostics
-serial.test(model_var, lags.pt = 16)
-arch.test(model_var)
-normality.test(model_var)
-roots(model_var)
-# Forecast
-forecast_var <- predict(model_var, n.ahead = 8)
-plot(forecast_var)
-# IRF
-irf_result <- irf(model_var, impulse = "ppi", response = "gdp")
-plot(irf_result)
-# FEVD
-fevd_result <- fevd(model_var)
-plot(fevd_result)
-# Granger
-causality(model_var, cause = "gdp")
-data(denmark)
-df <- denmark
-adf.test(df$LRM)
-adf.test(diff(df$LRM))
-model_ardl <- auto_ardl(LRM ~ LRY + IBO + IDE, data = df, max_order = c(5,4,4,4))
-summary(model_ardl)
-bounds_f_test(model_ardl$best_model, case = 3)
-multipliers(model_ardl$best_model)
-ecm <- uecm(model_ardl$best_model)
-summary(ecm)
-bgtest(model_ardl$best_model)
-bptest(model_ardl$best_model)
-jarque.bera.test(residuals(model_ardl$best_model))
-data <- read.csv("nifty.csv")
-price <- as.numeric(data$Close)
-returns <- diff(log(price))
-returns <- na.omit(returns)
-plot.ts(returns, main="Returns")
-ArchTest(returns, lags = 5)
-spec <- ugarchspec(
-  variance.model = list(model = "sGARCH", garchOrder = c(1,1)),
-  mean.model = list(armaOrder = c(0,0)),
-  distribution.model = "std"
+
+confusion matrix:
+prob_predict<-predict(logit_model, type="response")
+head(prob_predict)
+pred<-ifelse(prob_predict>0.5,1,0)
+table(predicted=pred, Actual=benign$Cancer)
+
+Accuracy Score:
+mean(pred==benign$Cancer)
+
+correlation_matrix:
+corr_matrix<-cor(beauty[c(1,4,6,8)])
+corr_matrix
+
+library(corrplot)
+corrplot(corr_matrix, type="upper", addCoef.col = "black")
+
+Stargazer table:
+install.packages("stargazer")
+library(stargazer)
+stargazer(model1,model2, type="text", column.labels = c("men","women"))
+
+
+BG Test:
+library(lmtest)
+bgtest(model1, order=4, type="Chisq")
+
+DW Test:
+library(lmtest)
+dwtest(model1)
+
+Jarque.bera test:
+library(tseries)
+jarque.bera.test(model$residuals)
+
+LoG-SELECTION:
+res<-residuals(model1)
+
+for (i in 10){
+  model<-arima(res, order= c(i,0,0))
+  aic[i]<-AIC(model)
+}
+best_log<-which.min(aic)
+best_log
+
+AIC_TABLE:
+aic_table<-data.frame(lag=1:10, AIC=aic)
+aic_table
+
+ACF PLOT:
+data9$resid<-resid(model1)
+acf(data9$resid, lag=1:10, main="Acf plot")
+
+
+Cochrane-orcutt:
+library(desk)
+fit_co<-cochorc(log(`GDP (constant 2015 US$)`)~t,data=gdp, pwt=TRUE)
+summary(fit_co)
+
+FGLS:
+library(nlme)
+fit_fgls<- gls(
+  QNC~PRICE+INCOME+PRIME+UNEMP+STOCK+POP,data=data9,
+  correlation= corARMA(p=4,q=0)
 )
-fit <- ugarchfit(spec = spec, data = returns)
-show(fit)
-plot(fit)
-forecast_garch <- ugarchforecast(fit, n.ahead = 10)
-plot(sigma(forecast_garch))
-# Load package
-library(urca)
-library(tsDyn)
-# Cointegration test
-Y <- data[, c("ppi","gdp","cpi")]
-jo <- ca.jo(Y, type = "trace", K = 2)
-summary(jo)
-# VECM (r = 1)
-vecm <- VECM(Y, lag = 2, r = 1)
-summary(vecm)
-# Convert to VAR
-vecm_var <- vec2var(jo, r = 1)
-# IRF + FEVD
-plot(irf(vecm_var))
-plot(fevd(vecm_var))
+summary(fit_fgls)
+
+Comparing FGLS AND OLS:
+library(modelsummary)
+modelsummary(list("OLS"=fit_ols, "FGLS"=fit_fgls))
+
+comprehensive diagnostics:(MC TEST)
+library(mctest)
+imcdiag(mod = model1, corr=T)
+
+
+scatter plot with more variables:
+library(ggplot2)
+vars <- c("educ", "hage", "heduc", "hhours", "hwage",
+          "wage", "mothereduc", "mtr", "unemployment")
+for (v in vars) {
+  print(
+    ggplot(table4, aes_string(x = v, y = "hours")) +
+      geom_point(color = "purple") +
+      ggtitle(paste("Hours vs", v))
+  )
+}
+
+
+Normality Test:
+residuals<-resid(model1)
+shapiro.test(residuals)
+
+
+Homoscadasticity Test:
+library(lmtest)
+bptest(model1)
+
+sensitivity:
+TP<-sum(pred==1 & df$high_income== 1)
+FN<-sum(pred==0 & df$high_income== 1)
+sensitivity<- TP/(TP+FN)
+sensitivity
+
+
+Specificity:
+TN<-sum(pred== 0 & df$high_income== 0)
+FP<-sum(pred== 1 & df$high_income== 0)
+specificity<-TN/(TN+FP)
+
+
+Likelihood Ratio:
+l_ratio<-glm(y_num~1, data=df, family=binomial)
+lrtest(l_ratio,model1)
+
+
+
+Multiple linear regression:
+m_base <- lm(gdp_pc ~ trade_open, data = econ)
+m_mlr <- lm(gdp_pc ~ trade_open + gov_spend + inflation, data = econ)
+anova(m_base, m_mlr)   
+
+
+ Manual R² calculation:
+TSS <- sum((econ$gdp_pc - mean(econ$gdp_pc))^2)
+RSS <- sum(residuals(m2)^2)
+ESS <- TSS - RSS
+
+ROC curve:
+library(pROC)
+roc_curve<-roc(bank_loan$default,prob)
+plot(roc_curve)
+
+..Theoretical form..
+\ln\left(\frac{P}{P-1}\right)= \beta_0+\beta_1 Age+ \beta_2 HIGD + \beta_3 CHK + \beta_4 AGPI + \beta_5 miscarriages + \beta_6 weight
+
+#hetroskedasticity:
+If p-value < 0.05 → Reject H (Thus, the model is statistically significant)
+0	
+- Heteroskedasticity is present
+If p-value > 0.05 → Fail to reject H0
+-No heteroskedasticity
+
+
+#logistic regression(interpretation):
+A logistic regression model was estimated to examine the relationship between the dependent variable and a set of explanatory variables.
+The coefficient of X is ___ (standard error = ___, p-value = ___).
+ This indicates that a one-unit increase in X leads to a change in the log-odds of the dependent variable by ___ units.
+
+#Multicolliniarity:
+A VIF value greater than 10 indicates severe multicollinearity, while values between 5 and 10 suggest moderate multicollinearity.
