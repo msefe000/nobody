@@ -1,3 +1,118 @@
+ 
+✅ QUESTION 1: Multiple Regression + Diagnostics
+(A) Data Structure
+data <- read.csv("winequality-red.csv")
+
+# Missing values
+sum(is.na(data))
+
+# Variable types
+str(data)
+ 
+(B) Baseline Model
+model1 <- lm(quality ~ alcohol + volatile.acidity, data=data)
+summary(model1)
+👉 Interpretation (1 line each):
+•	alcohol (+): higher alcohol → better quality
+•	volatile acidity (−): higher acidity → worse quality
+ 
+(C) Extended Model
+model2 <- lm(quality ~ alcohol + volatile.acidity + residual.sugar + pH, data=data)
+summary(model2)
+ 
+(D) Omitted Variable Bias
+coef(model1)
+coef(model2)
+👉 Write:
+•	If coefficient changes → OVB exists
+•	Direction:
+o	If omitted variable positively correlated → upward bias
+o	If negatively → downward bias
+ 
+(E) Diagnostics
+VIF (Multicollinearity)
+install.packages("car")
+library(car)
+vif(model2)
+Breusch-Pagan (Heteroscedasticity)
+install.packages("lmtest")
+library(lmtest)
+bptest(model2)
+👉 Remedies:
+•	Robust SE → coeftest(model2, vcov = vcovHC(model2))
+•	Transform variables (log)
+•	Remove correlated variables
+ 
+✅ QUESTION 2: Functional Forms
+(A) Models
+Log-linear
+model_loglin <- lm(log(PRP) ~ log(MYCT) + log(MMIN) + log(MMAX), data=data2)
+summary(model_loglin)
+Semi-log
+model_semilog <- lm(PRP ~ log(MYCT) + log(MMIN) + log(MMAX), data=data2)
+summary(model_semilog)
+ 
+(B) Comparison
+summary(model_loglin)$adj.r.squared
+summary(model_semilog)$adj.r.squared
+
+par(mfrow=c(1,2))
+plot(model_loglin)
+plot(model_semilog)
+👉 Choose:
+•	Higher Adjusted R²
+•	Better residual pattern
+•	Less heteroscedasticity
+ 
+(C) Interpretation
+👉 Log-log:
+•	coefficient = elasticity
+👉 Semi-log:
+•	1% change → β/100 change in PRP
+ 
+✅ QUESTION 3: Limited Dependent Variable Models
+(A) Setup
+data3 <- read.csv("bank.csv")
+
+data3$y <- ifelse(data3$y == "yes", 1, 0)
+ 
+(B) Estimation
+LPM
+lpm <- lm(y ~ age + balance + campaign + pdays + previous, data=data3)
+summary(lpm)
+Logit
+logit <- glm(y ~ age + balance + campaign + pdays + previous, 
+             data=data3, family=binomial)
+summary(logit)
+ 
+(C) Marginal Effects
+install.packages("margins")
+library(margins)
+margins(logit)
+👉 Interpretation:
+•	Positive → increases probability
+•	Negative → decreases probability
+ 
+(D) Model Comparison
+Predictions
+# Logit predictions
+data3$prob <- predict(logit, type="response")
+
+# Classification
+data3$pred <- ifelse(data3$prob > 0.5, 1, 0)
+
+# Confusion matrix
+table(data3$y, data3$pred)
+Accuracy
+mean(data3$y == data3$pred)
+ 
+Key Theory Lines (WRITE THESE IN EXAM)
+•	LPM → simple but heteroscedastic, predictions outside 0–1
+•	Logit → bounded (0–1), non-linear, more realistic
+•	Logit preferred due to theoretical validity
+ 
+
+
 odd ratio:
 exp(coef(logit_model)
 
@@ -157,3 +272,11 @@ The coefficient of X is ___ (standard error = ___, p-value = ___).
 
 #Multicolliniarity:
 A VIF value greater than 10 indicates severe multicollinearity, while values between 5 and 10 suggest moderate multicollinearity.
+library(car)
+vif_values<-vif(model=" " , data=" ")
+vif_data<-data.frame(
+variable<- names(vif_values),
+VIF= vif_values,
+Tolerance=1/vif_values
+)
+print(vif_data)
