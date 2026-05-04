@@ -1,282 +1,57 @@
- 
-✅ QUESTION 1: Multiple Regression + Diagnostics
-(A) Data Structure
-data <- read.csv("winequality-red.csv")
-
-# Missing values
-sum(is.na(data))
-
-# Variable types
-str(data)
- 
-(B) Baseline Model
-model1 <- lm(quality ~ alcohol + volatile.acidity, data=data)
-summary(model1)
-👉 Interpretation (1 line each):
-•	alcohol (+): higher alcohol → better quality
-•	volatile acidity (−): higher acidity → worse quality
- 
-(C) Extended Model
-model2 <- lm(quality ~ alcohol + volatile.acidity + residual.sugar + pH, data=data)
-summary(model2)
- 
-(D) Omitted Variable Bias
-coef(model1)
-coef(model2)
-👉 Write:
-•	If coefficient changes → OVB exists
-•	Direction:
-o	If omitted variable positively correlated → upward bias
-o	If negatively → downward bias
- 
-(E) Diagnostics
-VIF (Multicollinearity)
-install.packages("car")
-library(car)
-vif(model2)
-Breusch-Pagan (Heteroscedasticity)
-install.packages("lmtest")
-library(lmtest)
-bptest(model2)
-👉 Remedies:
-•	Robust SE → coeftest(model2, vcov = vcovHC(model2))
-•	Transform variables (log)
-•	Remove correlated variables
- 
-✅ QUESTION 2: Functional Forms
-(A) Models
-Log-linear
-model_loglin <- lm(log(PRP) ~ log(MYCT) + log(MMIN) + log(MMAX), data=data2)
-summary(model_loglin)
-Semi-log
-model_semilog <- lm(PRP ~ log(MYCT) + log(MMIN) + log(MMAX), data=data2)
-summary(model_semilog)
- 
-(B) Comparison
-summary(model_loglin)$adj.r.squared
-summary(model_semilog)$adj.r.squared
-
-par(mfrow=c(1,2))
-plot(model_loglin)
-plot(model_semilog)
-👉 Choose:
-•	Higher Adjusted R²
-•	Better residual pattern
-•	Less heteroscedasticity
- 
-(C) Interpretation
-👉 Log-log:
-•	coefficient = elasticity
-👉 Semi-log:
-•	1% change → β/100 change in PRP
- 
-✅ QUESTION 3: Limited Dependent Variable Models
-(A) Setup
-data3 <- read.csv("bank.csv")
-
-data3$y <- ifelse(data3$y == "yes", 1, 0)
- 
-(B) Estimation
-LPM
-lpm <- lm(y ~ age + balance + campaign + pdays + previous, data=data3)
-summary(lpm)
-Logit
-logit <- glm(y ~ age + balance + campaign + pdays + previous, 
-             data=data3, family=binomial)
-summary(logit)
- 
-(C) Marginal Effects
-install.packages("margins")
-library(margins)
-margins(logit)
-👉 Interpretation:
-•	Positive → increases probability
-•	Negative → decreases probability
- 
-(D) Model Comparison
-Predictions
-# Logit predictions
-data3$prob <- predict(logit, type="response")
-
-# Classification
-data3$pred <- ifelse(data3$prob > 0.5, 1, 0)
-
-# Confusion matrix
-table(data3$y, data3$pred)
-Accuracy
-mean(data3$y == data3$pred)
- 
-Key Theory Lines (WRITE THESE IN EXAM)
-•	LPM → simple but heteroscedastic, predictions outside 0–1
-•	Logit → bounded (0–1), non-linear, more realistic
-•	Logit preferred due to theoretical validity
- 
-
-
-odd ratio:
-exp(coef(logit_model)
-
-pseudo r:
-install.packages("DescTools")
-library(DescTools)
-PseudoR2(logit_model, which= "McFadden")
-
-
-confusion matrix:
-prob_predict<-predict(logit_model, type="response")
-head(prob_predict)
-pred<-ifelse(prob_predict>0.5,1,0)
-table(predicted=pred, Actual=benign$Cancer)
-
-Accuracy Score:
-mean(pred==benign$Cancer)
-
-correlation_matrix:
-corr_matrix<-cor(beauty[c(1,4,6,8)])
-corr_matrix
-
-library(corrplot)
-corrplot(corr_matrix, type="upper", addCoef.col = "black")
-
-Stargazer table:
-install.packages("stargazer")
-library(stargazer)
-stargazer(model1,model2, type="text", column.labels = c("men","women"))
-
-
-BG Test:
-library(lmtest)
-bgtest(model1, order=4, type="Chisq")
-
-DW Test:
-library(lmtest)
-dwtest(model1)
-
-Jarque.bera test:
-library(tseries)
-jarque.bera.test(model$residuals)
-
-LoG-SELECTION:
-res<-residuals(model1)
-
-for (i in 10){
-  model<-arima(res, order= c(i,0,0))
-  aic[i]<-AIC(model)
-}
-best_log<-which.min(aic)
-best_log
-
-AIC_TABLE:
-aic_table<-data.frame(lag=1:10, AIC=aic)
-aic_table
-
-ACF PLOT:
-data9$resid<-resid(model1)
-acf(data9$resid, lag=1:10, main="Acf plot")
-
-
-Cochrane-orcutt:
-library(desk)
-fit_co<-cochorc(log(`GDP (constant 2015 US$)`)~t,data=gdp, pwt=TRUE)
-summary(fit_co)
-
-FGLS:
-library(nlme)
-fit_fgls<- gls(
-  QNC~PRICE+INCOME+PRIME+UNEMP+STOCK+POP,data=data9,
-  correlation= corARMA(p=4,q=0)
-)
-summary(fit_fgls)
-
-Comparing FGLS AND OLS:
-library(modelsummary)
-modelsummary(list("OLS"=fit_ols, "FGLS"=fit_fgls))
-
-comprehensive diagnostics:(MC TEST)
-library(mctest)
-imcdiag(mod = model1, corr=T)
-
-
-scatter plot with more variables:
-library(ggplot2)
-vars <- c("educ", "hage", "heduc", "hhours", "hwage",
-          "wage", "mothereduc", "mtr", "unemployment")
-for (v in vars) {
-  print(
-    ggplot(table4, aes_string(x = v, y = "hours")) +
-      geom_point(color = "purple") +
-      ggtitle(paste("Hours vs", v))
-  )
-}
-
-
-Normality Test:
-residuals<-resid(model1)
-shapiro.test(residuals)
-
-
-Homoscadasticity Test:
-library(lmtest)
-bptest(model1)
-
-sensitivity:
-TP<-sum(pred==1 & df$high_income== 1)
-FN<-sum(pred==0 & df$high_income== 1)
-sensitivity<- TP/(TP+FN)
-sensitivity
-
-
-Specificity:
-TN<-sum(pred== 0 & df$high_income== 0)
-FP<-sum(pred== 1 & df$high_income== 0)
-specificity<-TN/(TN+FP)
-
-
-Likelihood Ratio:
-l_ratio<-glm(y_num~1, data=df, family=binomial)
-lrtest(l_ratio,model1)
-
-
-
-Multiple linear regression:
-m_base <- lm(gdp_pc ~ trade_open, data = econ)
-m_mlr <- lm(gdp_pc ~ trade_open + gov_spend + inflation, data = econ)
-anova(m_base, m_mlr)   
-
-
- Manual R² calculation:
-TSS <- sum((econ$gdp_pc - mean(econ$gdp_pc))^2)
-RSS <- sum(residuals(m2)^2)
-ESS <- TSS - RSS
-
-ROC curve:
-library(pROC)
-roc_curve<-roc(bank_loan$default,prob)
-plot(roc_curve)
-
-..Theoretical form..
-\ln\left(\frac{P}{P-1}\right)= \beta_0+\beta_1 Age+ \beta_2 HIGD + \beta_3 CHK + \beta_4 AGPI + \beta_5 miscarriages + \beta_6 weight
-
-#hetroskedasticity:
-If p-value < 0.05 → Reject H (Thus, the model is statistically significant)
-0	
-- Heteroskedasticity is present
-If p-value > 0.05 → Fail to reject H0
--No heteroskedasticity
-
-
-#logistic regression(interpretation):
-A logistic regression model was estimated to examine the relationship between the dependent variable and a set of explanatory variables.
-The coefficient of X is ___ (standard error = ___, p-value = ___).
- This indicates that a one-unit increase in X leads to a change in the log-odds of the dependent variable by ___ units.
-
-#Multicolliniarity:
-A VIF value greater than 10 indicates severe multicollinearity, while values between 5 and 10 suggest moderate multicollinearity.
-library(car)
-vif_values<-vif(model=" " , data=" ")
-vif_data<-data.frame(
-variable<- names(vif_values),
-VIF= vif_values,
-Tolerance=1/vif_values
-)
-print(vif_data)
+import pandas as pd 
+import numpy as np
+import yfinance as yf
+import matplotlib.pyplot as plt
+import mplfinance as mpf
+import matplotlib as mpt
+import statsmodels.api as sm
+s=yf.download("",start="2025-02-02",end="2026-01-01")
+s1=s[["Close","High","Low","Open","Volume"]]
+s1.columns=["Close","High","Low","Open","Volume"]
+plt.plot(s['Close'])
+mpf.plot(s1,type="candle",volume=True)
+mpf.plot(s1,type="candle",volume=True,mav=(10,50))
+mpf.plot(s1,type="candle",volume=True,mav=(10,50),style="yahoo")
+mc=mpf.make_marketcolors(up="green",down="red",wick="inherit",
+                     edge="inherit",volume="black")
+style=mpf.make_mpf_style(base_mpf_style='classic',
+                         facecolor="white",gridcolor="black",
+                         marketcolors=mc)
+mpf.plot(s1,style=style,type="candle",volume=True,mav=(10,100))
+delta=s1['Close'].diff()
+gain=delta.clip(lower=0)
+loss=-delta.clip(upper=0)
+again=gain.rolling(20).mean()
+aloss=loss.rolling(20).mean()
+rsi=again/aloss
+s['rsi']=100-(100/(1+rsi))
+rsi_plot=mpf.make_addplot(s['rsi'],panel=2,ylabel="rsi",color="black")
+mpf.plot(s1,mav=(10,20),addplot=rsi_plot,style=style,
+         figsize=(5,5),panel_ratios=(5,2,1),volume=True)
+s['r']=s["Close"]/s["Close"].shift(1)-1
+s["l"]=np.log(s["Close"]/s['Close'].shift(1))
+print(s['r'])
+avg_r=s['r'].mean()
+print(avg_r)
+s['r'].plot(figsize=(5,5))
+plt.figure()
+plt.plot(s['l'],label='www')
+plt.plot(s['r'],label="tttt")
+plt.legend()
+plt.grid()
+plt.show()
+tickers = ["^NSEI", "^NSEBANK", "^CNXAUTO", "^CNXFMCG", "^CNXPHARMA", "^CNXMETAL", "^CNXENERGY", "^CNXINFRA", "^CNXREALTY", "^CNXPSUBANK"]
+data = yf.download(tickers, start="2016-01-01", end="2026-01-01")['Close']
+data.plot(figsize = (15,6))
+returns = (data/data.shift(1))-1
+print(returns)
+returns.plot(figsize=(4,5))
+annual_returns = returns.mean() * 252
+print(annual_returns)
+cov_matrix = returns.cov() * 252
+print(cov_matrix)
+volatility = returns.std() * (252**0.5)
+print(volatility)
+variance = returns.var() * 252
+print(variance)
+variance.plot(kind='bar')
