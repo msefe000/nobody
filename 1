@@ -40,7 +40,7 @@ plt.plot(s['r'],label="tttt")
 plt.legend()
 plt.grid()
 plt.show()
-tickers = ["^NSEI", "^NSEBANK", "^CNXAUTO", "^CNXFMCG", "^CNXPHARMA", "^CNXMETAL", "^CNXENERGY", "^CNXINFRA", "^CNXREALTY", "^CNXPSUBANK"]
+tickers = ["^NSEI"]
 data = yf.download(tickers, start="2016-01-01", end="2026-01-01")['Close']
 data.plot(figsize = (15,6))
 returns = (data/data.shift(1))-1
