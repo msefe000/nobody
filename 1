@@ -1,711 +1,835 @@
-TIME SERIES ANALYSIS
-Complete R Code – Neatly Organized
-1. Importing Data from Yahoo Finance
-##Importing data sets from Yahoo finance
+01. DATA TRANSFORMATION – CUSTOMER DATASET
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, LabelEncoder
 
-library(pdfetch)# data from yahoo finance
-pdfetch_YAHOO("^NSEI")#importing of data
-NIFTY_50_Data=pdfetch_YAHOO("^NSEI")#to store the value
-View(NIFTY_50_Data)
-tail(NIFTY_50_Data)
-plot.ts(NIFTY_50_Data$`^NSEI.close`)
-ITC=pdfetch_YAHOO("ITC.NS")#Import the ITC share price
-View(ITC)
-plot.ts(ITC$ITC.NS.close)
-summary(ITC$ITC.NS.close)
-#Another Method to import
-library(quantmod)
-getSymbols("^NSEI",from="2010-01-01")
-View(NSEI)
-getSymbols("^NSEI",from="2010-01-01",to="2026-07-07")
-View(NSEI)
-plot.ts(NSEI$NSEI.High)
-#Multiple data set
-library(pdfetch)
-x=pdfetch_YAHOO(c("^NSEI","ITC.NS","SBIN.NS","RELIANCE.NS"),
-                "close",from="2015-01-01",to="2026-08-05")
-View(x)
-data=read.delim("clipboard")
-data
+df1 = pd.read_csv("customers_raw.csv")
+print(df1)
 
-##########################
-2. Basic Time Series Data
-# Time series data
-data("AirPassengers")
-AP <- AirPassengers
-str(AP)
-head(AP)
-ts(AP, frequency = 12, start=c(1949,1))
-attributes(AP)
-plot(AP)
+df1 = df1.drop_duplicates().copy()
+df1["Name"] = df1["Name"].fillna("Unknown")
+df1["Age"] = df1["Age"].fillna(df1["Age"].median())
+df1["Salary"] = df1["Salary"].fillna(df1["Salary"].median())
+df1["Age"] = df1["Age"].astype(int)
+df1["City"] = df1["City"].str.strip().str.title()
 
-# Log transform
-AP <- log(AP)
-plot(AP)
+def cap_outlier_iqr(series):
+    q1, q3 = series.quantile([0.25, 0.75])
+    iqr = q3 - q1
+    return series.clip(q1 - 1.5 * iqr, q3 + 1.5 * iqr)
 
-3. Additive Time Series Decomposition
-# Decomposition of additive time series
-decomp <- decompose(AP)
-decomp$figure
-plot(decomp$figure,
-     type = 'b',
-     xlab = 'Month',
-     ylab = 'Seasonality Index',
-     col = 'blue',
-     las = 2)
-plot(decomp)
+print(df1[["Age", "Salary"]].describe().loc[["min", "max"]])
 
+df1["Age"] = cap_outlier_iqr(df1["Age"])
+df1["Salary"] = cap_outlier_iqr(df1["Salary"])
 
+print(df1[["Age", "Salary"]].describe().loc[["min", "max"]])
 
-########################
-library(readxl)
+df2 = pd.read_csv("purchases.csv")
 
-# file path
-path <- "C:/Users/satyaban.sahoo/OneDrive - Manipal Academy of Higher Education/Documents/D Drive/Time Series Analysis/2026-27 3rd Sem MSc (BA)/Nifty 50.xlsx"
+df_merged = pd.merge(df1, df2, on="CustomerID", how="inner")
 
-# read data
-df <- read_excel(path)
+print(df_merged.groupby("City")["TotalPurchases"].sum())
 
-# take first column as Date and second column as series
-df <- df[, 1:2]
-names(df) <- c("Date", "Value")
-df$Date <- as.Date(df$Date)
-df <- df[order(df$Date), ]
-df <- na.omit(df)
+dt = df_merged.copy()
 
-###1.Original daily plot
-plot(df$Date, df$Value, type = "l",
-     main = "Nifty 50",
-     xlab = "Date", ylab = "Value")
-
-### 2.Smoothing: 5-day and 30-day moving averages
-df$MA5  <- stats::filter(df$Value, rep(1/5, 5), sides = 2)
-df$MA30 <- stats::filter(df$Value, rep(1/30, 30), sides = 2)
-
-plot(df$Date, df$Value, type = "l",
-     main = "Nifty 50 5-Day Moving Average",
-     xlab = "Date", ylab = "Value")
-lines(df$Date, df$MA5, col = "red", lwd = 2)
-
-plot(df$Date, df$Value, type = "l",
-     main = "Nifty 50 30-Day Moving Average",
-     xlab = "Date", ylab = "Value")
-lines(df$Date, df$MA30, col = "blue", lwd = 2)
-
-### 3. Least squares trend
-t <- 1:nrow(df)
-fit <- lm(Value ~ t, data = df)
-df$Trend_LS <- fitted(fit)
-
-plot(df$Date, df$Value, type = "l",
-     main = "Least Squares Trend",
-     xlab = "Date", ylab = "Value")
-lines(df$Date, df$Trend_LS, col = "darkgreen", lwd = 2)
-
-### 4. Semi-averages
-n <- nrow(df)
-h <- floor(n / 2)
-
-m1 <- mean(df$Value[1:h], na.rm = TRUE)
-m2 <- mean(df$Value[(h + 1):n], na.rm = TRUE)
-
-df$SemiAvg <- c(rep(m1, h), rep(m2, n - h))
-
-plot(df$Date, df$Value, type = "l",
-     main = "Semi-Averages Trend",
-     xlab = "Date", ylab = "Value")
-lines(df$Date, df$SemiAvg, col = "purple", lwd = 2)
-
-library(readxl)
-
-4. Trend Decomposition and Trend Estimation
-####Trend Decoposition#####
-### 1. Read daily Nifty data
-path <- "Nifty 50.xlsx"
-
-df <- read_excel(path)
-df <- df[, 1:2]
-names(df) <- c("Date", "Value")
-
-df$Date <- as.Date(df$Date)
-df <- df[order(df$Date), ]
-df <- na.omit(df)
-
-plot(df$Date, df$Value, type = "l",
-     main = "Daily Nifty 50",
-     xlab = "Date", ylab = "Value")
-
-# 2. Moving-average filters: short, medium, long horizons
-# choose windows appropriate for daily data
-short_n  <- 10    # ~2 weeks
-medium_n <- 30    # ~1 month
-long_n   <- 90    # ~1 quarter
-
-df$MA_short  <- stats::filter(df$Value, rep(1/short_n,  short_n),  sides = 2)
-df$MA_medium <- stats::filter(df$Value, rep(1/medium_n, medium_n), sides = 2)
-df$MA_long   <- stats::filter(df$Value, rep(1/long_n,   long_n),   sides = 2)
-
-# 3. Define components
-# long-term: very smooth trend
-df$Long_term <- df$MA_long
-
-# medium-term: movements between medium and long trend
-df$Medium_term <- df$MA_medium - df$MA_long
-# short-term: high-frequency residual around medium trend
-df$Short_term <- df$Value - df$MA_medium
-# 4. Plot components
-par(mfrow = c(3, 1))
-
-plot(df$Date, df$Long_term, type = "l",
-     main = "Long-Term Component (~90-Day Trend)",
-     xlab = "Date", ylab = "Long-Term")
-
-plot(df$Date, df$Medium_term, type = "l",
-     main = "Medium-Term Component (~30 vs 90 Days)",
-     xlab = "Date", ylab = "Medium-Term")
-
-plot(df$Date, df$Short_term, type = "l",
-     main = "Short-Term Component (Residual Around 30-Day Trend)",
-     xlab = "Date", ylab = "Short-Term")
-par(mfrow = 1)
-
-
-
-5. Stationarity Tests and Return Series
-##### Stationarity test###
-library(tseries)
-adf.test(df$Price)
-pp.test(df$Price)
-kpss.test(df$Price)
-###Return Series
-retnifty=diff(log(df$Price))
-plot(retnifty)
-
-##Convert the data in to ZOO series
-library(zoo)
-Y=read.zoo(data.frame(df),FUN =as.Date,format='%d%m%Y')
-plot(Y)
-retnifty=diff(log(Y))
-plot(retnifty)
-
-
-6. ARIMA – Manual Model Selection and Forecasting
-####ARIMA Manual Forecast
-# Load libraries
-library(readxl)
-library(forecast)
-library(ggplot2)
-library(dplyr)
-library(tseries)
-library(zoo)
-
-# File path
-path <- "C:/Users/satyaban.sahoo/OneDrive - Manipal Academy of Higher Education/Documents/D Drive/Time Series Analysis/2026-27 3rd Sem MSc (BA)/Nifty 50.xlsx"
-
-# Read data
-df <- read_excel(path)
-
-# Clean data
-df$Date <- as.Date(df$Date)
-df$Price <- as.numeric(gsub(",", "", df$Price))
-df <- df %>% arrange(Date) %>% na.omit()
-# Create zoo series
-zoo_price <- zoo(df$Price, order.by = df$Date)
-# Convert to ts for ARIMA
-Y <- ts(coredata(zoo_price))
-
-# Plot actual series
-plot(zoo_price, main = "Nifty 50", xlab = "Date", ylab = "Price", col = "blue", lwd = 2)
-
-# Stationarity test
-adf.test(Y)
-pp.test(Y)
-kpss.test(Y)
-# First difference
-retnifty <- diff(Y)
-
-# Stationary test after difference
-adf.test(retnifty)
-pp.test(retnifty)
-kpss.test(retnifty)
-plot(retnifty)
-
-# ACF and PACF
-acf(retnifty, main = "ACF of First Differenced Series")
-pacf(retnifty, main = "PACF of First Differenced Series")
-
-# Manually estimate candidate ARIMA models
-fit_110 <- Arima(Y, order = c(1, 1, 0))
-fit_011 <- Arima(Y, order = c(0, 1, 1))
-fit_111 <- Arima(Y, order = c(1, 1, 1))
-fit_211 <- Arima(Y, order = c(2, 1, 1))
-
-# Compare AIC
-cat("AIC values:\n")
-cat("ARIMA(1,1,0):", AIC(fit_110), "\n")
-cat("ARIMA(0,1,1):", AIC(fit_011), "\n")
-cat("ARIMA(1,1,1):", AIC(fit_111), "\n")
-cat("ARIMA(2,1,1):", AIC(fit_211), "\n")
-
-# Compare BIC
-cat("BIC values:\n")
-cat("ARIMA(1,1,0):", BIC(fit_110), "\n")
-cat("ARIMA(0,1,1):", BIC(fit_011), "\n")
-cat("ARIMA(1,1,1):", BIC(fit_111), "\n")
-cat("ARIMA(2,1,1):", BIC(fit_211), "\n")
-
-# Accuracy on fitted values
-cat("Accuracy ARIMA(1,1,0):\n")
-print(accuracy(fit_110))
-
-cat("Accuracy ARIMA(0,1,1):\n")
-print(accuracy(fit_011))
-
-cat("Accuracy ARIMA(1,1,1):\n")
-print(accuracy(fit_111))
-
-cat("Accuracy ARIMA(2,1,1):\n")
-print(accuracy(fit_211))
-
-# Residual diagnostics for preferred model
-checkresiduals(fit_110)
-
-# Forecast future values
-fc_110 <- forecast(fit_110, h = 500)
-
-# Plot forecast
-plot(fc_110, main = "ARIMA Forecast", xlab = "Time", ylab = "Price")
-
-####
-# Create future dates with the SAME length as forecast horizon
-last_date <- max(df$Date)
-future_dates <- seq.Date(from = last_date + 1, 
-                         by = "day", length.out = length(fc_110$mean))
-
-# Forecast data frame
-fc_df <- data.frame(
-  Date = future_dates,
-  Forecast = as.numeric(fc_110$mean)
-)
-# Actual data frame
-actual_df <- data.frame(
-  Date = df$Date,
-  Price = df$Price
-)
-# Plot actual and forecast
-ggplot() +
-  geom_line(data = actual_df, aes(x = Date, y = Price), color = "blue", 
-            linewidth = 1) +
-  geom_line(data = fc_df, aes(x = Date, y = Forecast), color = "red", 
-            linewidth = 1) +
-  labs(
-    title = "Actual Series with ARIMA Forecast",
-    x = "Date",
-    y = "Price"
-  ) +
-  theme_minimal()+
-  theme(
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
-    plot.title   = element_text(hjust = 0.5)
-  )
-
-# Save forecast
-write.csv(data.frame(Forecast = as.numeric(fc_111$mean)),
-          "nifty50_arima_forecast.csv",
-          row.names = FALSE)
-
-
-7. Auto ARIMA
-##############Auto ARIMA##########
-# Load libraries
-library(readxl)
-library(dplyr)
-library(zoo)
-library(forecast)
-library(ggplot2)
-
-# Read the Excel file
-data <- read_excel("C:/Users/satyaban.sahoo/OneDrive - Manipal Academy of Higher Education/Documents/D Drive/Time Series Analysis/2026-27 3rd Sem MSc (BA)/Nifty 50.xlsx")
-
-# Clean data
-data$Date  <- as.Date(data$Date)
-data$Price <- as.numeric(gsub(",", "", data$Price))
-data <- data %>%
-  arrange(Date) %>%
-  na.omit()
-
-# Create zoo series
-zoo_price <- zoo(data$Price, order.by = data$Date)
-
-# Plot zoo series
-plot(zoo_price,
-     main = "Nifty 50 Daily Price (Zoo Series)",
-     xlab = "Date",
-     ylab = "Price",
-     col  = "blue",
-     lwd  = 2)
-
-# Convert to ts for ARIMA fitting
-# (you can drop frequency = 7 if you don't want to assume weekly seasonality)
-ts_price <- ts(coredata(zoo_price))
-
-# Fit ARIMA
-fit_full <- auto.arima(ts_price)
-summary(fit_full)
-
-# Forecast 200 periods
-h <- 200
-fc_full <- forecast(fit_full, h = h)
-
-# Create future dates (length must equal h)
-last_date    <- max(index(zoo_price))
-future_dates <- seq.Date(from = last_date + 1,
-                         by   = "day",
-                         length.out = h)
-
-# Combine forecast data with dates
-fc_df <- data.frame(
-  Date     = future_dates,
-  Forecast = as.numeric(fc_full$mean)
+dt[["Age_MinMax", "Salary_MinMax"]] = MinMaxScaler().fit_transform(
+    dt[["Age", "Salary"]]
 )
 
-# Plot using ggplot so x-axis shows dates
-ggplot() +
-  geom_line(data = data,
-            aes(x = Date, y = Price),
-            color     = "black",
-            linewidth = 1) +
-  geom_line(data = fc_df,
-            aes(x = Date, y = Forecast),
-            color     = "red",
-            linewidth = 1)+
-  labs(
-    title = "Out-of-sample ARIMA Forecast",
-    x     = "Date",
-    y     = "Price"
-  ) +
-  theme_minimal() +
-  theme(
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
-    plot.title   = element_text(hjust = 0.5)
-  )
-
-
-8. In-Sample / Holdout Forecasting
-############## In Sample Forecasting ############
-# Load libraries
-library(readxl)
-library(forecast)
-library(ggplot2)
-library(dplyr)
-library(zoo)
-library(tidyr)
-
-##1.Import Data
-data <- read_excel("C:/Users/satyaban.sahoo/OneDrive - Manipal Academy of Higher Education/Documents/D Drive/Time Series Analysis/2026-27 3rd Sem MSc (BA)/Nifty 50.xlsx")
-
-### 2. Clean data
-data$Date <- as.Date(data$Date)
-data$Price <- as.numeric(gsub(",", "", data$Price))
-data <- data %>%
-  arrange(Date) %>%
-  na.omit()
-
-### 3. Create zoo series
-zoo_price <- zoo(data$Price, order.by = data$Date)
-
-### 4. Split into 80% estimation and 20% forecast
-n <- length(zoo_price)
-train_size <- floor(0.8 * n)
-
-train_zoo <- zoo_price[1:train_size]
-
-## [1:train_size] creates a sequence of integers from 1 
-## up to the value of train_size
-test_zoo <- zoo_price[(train_size + 1):n]
-
-## train_size + 1 Starts from the first observation after the training data.
-## If train_size = 80, then the starting index is 81.
-
-# 5. Convert zoo to ts for ARIMA
-train_ts <- ts(coredata(train_zoo))
-
-# 6. Fit ARIMA on training sample
-fit_train <- auto.arima(train_ts)
-summary(fit_train)
-
-# 7. Forecast 20% holdout period
-fc_20 <- forecast(fit_train, h = length(test_zoo))
-
-# 8. Create holdout results
-result_20 <- data.frame(
-  Date = index(test_zoo),
-  Actual = as.numeric(coredata(test_zoo)),
-  Forecast = as.numeric(fc_20$mean)
+dt[["Age_Z", "Salary_Z"]] = StandardScaler().fit_transform(
+    dt[["Age", "Salary"]]
 )
 
-# 9. Create full actual series data frame
-full_actual <- data.frame(
-  Date = index(zoo_price),
-  Price = as.numeric(coredata(zoo_price))
+dt["Gender_Encoded"] = LabelEncoder().fit_transform(dt["Gender"])
+
+dt = pd.get_dummies(dt, columns=["City"], prefix="City")
+
+dt["Age_Group"] = pd.cut(
+    dt["Age"],
+    bins=[0, 25, 35, 50, 100],
+    labels=["Young", "Adult", "MidAge", "Senior"],
+    include_lowest=True
 )
 
-# 10. Plot full actual series + 20% forecast
-ggplot() +
-  geom_line(data = full_actual, aes(x = Date, y = Price), color = "black", linewidth = 1) +
-  geom_line(data = result_20, aes(x = Date, y = Forecast), color = "red", linewidth = 1)+
-  labs(
-    title = "Nifty 50: Full Actual Series with 20% ARIMA Forecast",
-    x = "Date",
-    y = "Price"
-  ) +
-  theme_minimal() +
-  theme(
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
-  )
+conditions = [
+    dt.TotalPurchases.between(1, 5),
+    dt.TotalPurchases.between(6, 10),
+    dt.TotalPurchases.between(11, 15),
+    dt.TotalPurchases.between(16, 20)
+]
 
-# 11. Accuracy measures for holdout
-mae_20 <- mean(abs(result_20$Actual - result_20$Forecast), na.rm = TRUE)
-rmse_20 <- sqrt(mean((result_20$Actual - result_20$Forecast)^2, na.rm = TRUE))
-
-cat("MAE:", mae_20, "\n")
-cat("RMSE:", rmse_20, "\n")
-
-
-
-
-############################################
-library(readxl)
-9. World Indices – Descriptive Statistics and Stationarity
-WORLD_INDICES <- read_excel("~/D Drive/Time Series Analysis/World Indices.xlsx")
-library(zoo)
-View(WORLD_INDICES)
-head(WORLD_INDICES)
-tail(WORLD_INDICES)
-library(zoo)
-Y=read.zoo(data.frame(WORLD_INDICES),FUN =as.Date,format='%d%m%Y')
-View(Y)
-Y=log(Y)
-sd(Y$USA)
-var(Y$USA)
-library(moments)
-skewness(Y$USA)
-kurtosis(Y$USA)
-summary(Y)
-plot(Y)
-write.csv(summary(Y),("Summary_world.csv"))
-k = ncol(Y)
-NAMES = colnames(Y)
-split = 2
-par(mfrow = c(ceiling(k/split),split), oma = c(0.5,1,0,0) + 0.1, 
-    mar = c(0.5,1,1,0) + .5, mgp = c(3, 0.5, 0))
-
-for (i in 1:k) {
-  plot(Y[,i], type="l",las=1,xaxs="i",col="#0746ab",main=NAMES[i],
-       tck=-0.01,yaxs="i")
-  lines(Y[,i], col="#0746ab")
-  box()
-}
-library(FinTS)
-library(tseries)
-adf.test(Y$USA)
-adf.test(Y$UK)
-adf.test(Y$Japan)
-adf.test(Y$Brazil)
-adf.test(Y$China)
-adf.test(Y$India)
-adf.test(Y$South.Africa)
-library(urca)
-kpss.test(Y$USA)
-###Return Series
-retusa=diff(log(Y$USA))
-retuk=diff(log(Y$UK))
-retjapan=diff(log(Y$Japan))
-retbrazil=diff(log(Y$Brazil))
-retchina=diff(log(Y$China))
-retindia=diff(log(Y$India))
-retsa=diff(log(Y$South.Africa))
-adf.test(retusa)
-adf.test(retuk)
-adf.test(retjapan)
-adf.test(retbrazil)
-adf.test(retchina)
-adf.test(retindia)
-adf.test(retsa)
-
-YY = cbind.zoo(retusa,retuk,retjapan,
-               retbrazil,retchina,retindia,retsa)
-plot(YY)
-library(FinTS)
-library(tseries)
-plot(Y)
-
-10. VAR – Lag Selection
-##Optimal Lag
-library(vars)
-library(mFilter)
-lagselect<-VARselect(YY,lag.max = 10,type = "const")
-lagselect
-lagselect$selection
-####
-library(tidyverse)
-library(forecast)
-Jotest<-ca.jo(Y,type="trace",ecdet = "trend",K=2)##Trace Stat
-Jotest
-summary(Jotest)
-
-library(zoo)
-Y=read.zoo(data.frame(SECTOR_WISE),FUN =as.Date,format='%d%m%Y')
-View(Y)
-mean(Y$Healthcare)
-median(Y$Healthcare)
-min(Y$Healthcare)
-max(Y$Healthcare)
-range(Y$Healthcare)
-quantile(Y$Healthcare)
-sd(Y$Healthcare)
-var(Y$Healthcare)
-library(moments)
-skewness(Y$Healthcare)
-kurtosis(Y$Healthcare)
-plot(Y$Healthcare)
-summary(Y)
-plot(Y)
-write.csv(summary(Y),("Summary_Sector.csv"))
-k = ncol(Y)
-NAMES = colnames(Y)
-split = 2
-par(mfrow = c(ceiling(k/split),split), oma = c(0.5,1,0,0) + 0.1, mar = c(0.5,1,1,0) + .5, mgp = c(3, 0.5, 0))
-
-for (i in 1:k) {
-  plot(Y[,i], type="l",las=1,xaxs="i",col="#0746ab",main=NAMES[i],tck=-0.01,yaxs="i")
-  lines(Y[,i], col="#0746ab")
-  box()
-}
-library(FinTS)
-library(tseries)
-adf.test(Y$Healthcare)
-adf.test(Y$Healthcare)
-pp.test(Y$Healthcare)
-library(urca)
-kpss.test(Y$Healthcare)
-###Return Series
-retauto=diff(log(Y$Auto))
-retbank=diff(log(Y$Bank))
-retfinancial=diff(log(Y$FS))
-retfmcg=diff(log(Y$FMCG))
-rethealthcare=diff(log(Y$Healthcare))
-YY = cbind.zoo(retauto,retbank,retfinancial,retfmcg,rethealthcare)
-plot(YY$retauto)
-library(FinTS)
-library(tseries)
-adf.test(YY$rethealthcare)
-adf.test(YY$retauto)
-adf.test(YY$retbank)
-adf.test(YY$retfinancial)
-adf.test(YY$retfmcg)
-pp.test(YY$Healthcare)
-kpss.test(YY$retauto)
-plot(Y)
-##Optimal Lag
-library(vars)
-library(mFilter)
-lagselect<-VARselect(YY,lag.max = 10,type = "const")
-lagselect
-lagselect$selection
-####
-
-
-
-library(tidyverse)
-library(forecast)
-Jotest<-ca.jo(Y,type="trace",ecdet = "trend",K=2)##Trace Stat
-Jotest
-summary(Jotest)
-##VECM
-library(urca)
-model1=VECM(Y,lag = 2, r=1,estim = 'ML')
-summary(model1)
-
-library(urca)
-vecm_model=cajorls(Jotest,r = 1)
-summary(vecm_model$rlm) #ECT
-
-11. VAR – Model, Diagnostics, Causality, IRF, FEVD and Forecasting
-##Builing VAR
-VAR1=VAR(YY,lag.max = 2,type = "const",season = NULL,exog=NULL)
-summary(VAR1)
-##Display of VAR Results
-library(stargazer)
-stargazer(VAR1[["varresult"]],type = 'text')
-VAR2=VAR(YY,type = "const",lag.max = 2,ic="AIC")
-VAR2
-VAR2=VAR(data.frame(YY$retauto,retbank,retfinancial),type = "const",lag.max = 2,ic="AIC")
-VAR2
-########
-
-##Stable model
-roots(VAR1,modulus=TRUE) ##Values to be less than one
-##Diagnostic Test for VAR Serial Correlation
-Serial1=serial.test(VAR1,lags.pt = 10,type = "PT.asymptotic")
-Serial1 ##Null: There is no Serial Correlation
-##Diagnostic Test for VAR Heteroscedaticity
-ARCH1=arch.test(VAR1,lags.multi = 10,multivariate.only = TRUE)
-ARCH1 ##There is no ARCH effect
-##Diagnostic Test for VAR Normality
-NORM1=normality.test(VAR1,multivariate.only = TRUE)
-NORM1 ##Residual are Normality Distributed
-##TEsting for Structural Break Test
-Stability1=stability(VAR1,type = "OLS-CUSUM")
-Stability1
-plot(Stability1)
-#Granger Causality Test
-Granger1=causality(VAR1,cause="retauto")
-Granger1
-Granger1=causality(VAR1,cause = "retbank")
-Granger1
-Granger1=causality(VAR1, cause = "retfmcg")
-Granger1
-Granger1=causality(VAR1, cause = "retfinancial")
-Granger1
-Granger1=causality(VAR1, cause = "rethealthcare")
-Granger1
-causality(VAR1,cause = "retauto")$Granger
-###Impulse REsponse Function(IRF)
-AUTOIRF=irf(VAR1,impulse = "retbank",response = "retauto",
-            n.ahead = 10,boot = TRUE)
-plot(AUTOIRF,ylab="retauto",main="Shock From retbank")
-
-BANKIRF=irf(VAR1,impulse = "retauto",
-            response = "retbank",n.ahead = 10,boot = TRUE)
-plot(BANKIRF,ylab="retbank",mail="Shock From retauto")
-
-
-IRF_ALL= irf(VAR1,impulse = colnames(YY),
-             response = colnames(YY),
-             n.ahead = 10,
-             boot = TRUE,
-             ci = 0.95,
-             runs = 100
+dt["Loyalty_Points"] = np.select(
+    conditions, [1, 2, 3, 4], default=0
 )
-IRF_ALL
-plot(IRF_ALL)
 
-##Variance Decomposition
-FEVDI=fevd(VAR1,n.ahead = 10)
-plot(FEVDI)
-FEVDI[["retauto"]]
-FEVDI[["retbank"]]
-FEVDI[["retfmcg"]]
-FEVDI[["rethealthcare"]]
-FEVDI[["retfinancial"]]
-##VAR Forecasting
-forecast=predict(VAR1,n.ahead = 10,cl=0.95)
-fanchart(forecast,names = "retauto")
-fanchart(forecast,names = "retbank")
+dt["Cashback"] = np.select(
+    conditions, [100, 200, 300, 400], default=0
+)
 
+print(dt[[
+    "CustomerID", "Age", "Age_MinMax", "Age_Z", "Age_Group",
+    "Salary", "Salary_MinMax", "Salary_Z",
+    "Gender", "Gender_Encoded"
+]])
+ 
+02. LINEAR REGRESSION (OLS) – ADVERTISING DATASET
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor as vif
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import matplotlib.pyplot as plt
 
+ad = pd.read_csv("Advertising.csv", index_col=0)
+print(ad.head())
+print(ad.corr()["sales"])
 
+X = sm.add_constant(ad[["TV", "radio", "newspaper"]])
+model = sm.OLS(ad["sales"], X).fit()
 
+print(model.summary())
+print("VIF:", [round(vif(X.values, i), 2) for i in range(X.shape[1])])
 
+Xtr, Xte, ytr, yte = train_test_split(
+    ad[["TV", "radio", "newspaper"]],
+    ad["sales"],
+    test_size=0.2,
+    random_state=42
+)
 
+lr = LinearRegression().fit(Xtr, ytr)
+pred = lr.predict(Xte)
+
+print(
+    "coefficients:",
+    dict(zip(
+        ["TV", "radio", "newspaper"],
+        np.round(lr.coef_, 4)
+    ))
+)
+
+print("intercept: %.4f" % lr.intercept_)
+
+print(
+    "RMSE %.3f | MAE %.3f | R2 %.4f" %
+    (
+        np.sqrt(mean_squared_error(yte, pred)),
+        mean_absolute_error(yte, pred),
+        r2_score(yte, pred)
+    )
+)
+
+plt.scatter(model.fittedvalues, model.resid)
+plt.axhline(0)
+plt.xlabel("Fitted")
+plt.ylabel("Residual")
+plt.show()
+
+m2 = sm.OLS(
+    ad["sales"],
+    sm.add_constant(ad[["TV", "radio"]])
+).fit()
+
+print(
+    "with newspaper AdjR2 %.4f AIC %.1f" %
+    (model.rsquared_adj, model.aic)
+)
+
+print(
+    "without newspaper AdjR2 %.4f AIC %.1f" %
+    (m2.rsquared_adj, m2.aic)
+)
+ 
+03. LOGISTIC REGRESSION – BINARY CHURN DATASET
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    log_loss,
+    confusion_matrix,
+    classification_report,
+    accuracy_score,
+    roc_auc_score,
+    roc_curve
+)
+
+churn_df = pd.read_csv("ChurnData.csv")
+
+churn_df = churn_df[
+    ["tenure", "age", "address", "income", "ed", "employ", "equip", "churn"]
+]
+
+churn_df["churn"] = churn_df["churn"].astype(int)
+
+print(churn_df["churn"].value_counts())
+
+X = np.asarray(
+    churn_df[
+        ["tenure", "age", "address", "income", "ed", "employ", "equip"]
+    ]
+)
+
+Y = np.asarray(churn_df["churn"])
+
+scaler = StandardScaler()
+X_norm = scaler.fit_transform(X)
+
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X_norm, Y, test_size=0.2, random_state=4
+)
+
+LR = LogisticRegression()
+LR.fit(X_train, Y_train)
+
+yhat = LR.predict(X_test)
+yhat_prob = LR.predict_proba(X_test)
+
+print("Log loss: %.4f" % log_loss(Y_test, yhat_prob))
+print("Accuracy: %.4f" % accuracy_score(Y_test, yhat))
+print("ROC-AUC: %.4f" % roc_auc_score(Y_test, yhat_prob[:, 1]))
+print(confusion_matrix(Y_test, yhat))
+print(classification_report(Y_test, yhat, digits=3))
+
+coefficients = pd.Series(
+    LR.coef_[0],
+    index=churn_df.columns[:-1]
+)
+
+print("Odds ratios:")
+print(np.exp(coefficients))
+
+coefficients.sort_values().plot(kind="barh")
+plt.title("Feature Coefficients")
+plt.show()
+
+fpr, tpr, _ = roc_curve(Y_test, yhat_prob[:, 1])
+
+plt.plot(fpr, tpr)
+plt.plot([0, 1], [0, 1], "--")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve")
+plt.show()
+ 
+04. LOGISTIC REGRESSION – MULTI-CLASS OBESITY DATASET
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.multiclass import OneVsRestClassifier, OneVsOneClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+data = pd.read_csv("Obesity_level_prediction_dataset.csv")
+
+sns.countplot(y="NObeyesdad", data=data)
+plt.title("Distribution of Obesity Levels")
+plt.show()
+
+print(data.isnull().sum())
+print(data.describe())
+
+continuous_columns = data.select_dtypes(
+    include=["float64"]
+).columns.tolist()
+
+scaled_df = pd.DataFrame(
+    StandardScaler().fit_transform(data[continuous_columns]),
+    columns=continuous_columns
+)
+
+scaled_data = pd.concat(
+    [data.drop(columns=continuous_columns), scaled_df],
+    axis=1
+)
+
+categorical_columns = scaled_data.select_dtypes(
+    include=["object"]
+).columns.tolist()
+
+categorical_columns.remove("NObeyesdad")
+
+encoder = OneHotEncoder(
+    sparse_output=False,
+    drop="first"
+)
+
+encoded_df = pd.DataFrame(
+    encoder.fit_transform(scaled_data[categorical_columns]),
+    columns=encoder.get_feature_names_out(categorical_columns)
+)
+
+prepped_data = pd.concat(
+    [scaled_data.drop(columns=categorical_columns), encoded_df],
+    axis=1
+)
+
+prepped_data["NObeyesdad"] = (
+    prepped_data["NObeyesdad"].astype("category").cat.codes
+)
+
+X = prepped_data.drop("NObeyesdad", axis=1)
+y = prepped_data["NObeyesdad"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42,
+    stratify=y
+)
+
+model_ova = OneVsRestClassifier(
+    LogisticRegression(max_iter=1000)
+).fit(X_train, y_train)
+
+model_ovo = OneVsOneClassifier(
+    LogisticRegression(max_iter=1000)
+).fit(X_train, y_train)
+
+model_soft = LogisticRegression(
+    max_iter=1000
+).fit(X_train, y_train)
+
+for name, model in [
+    ("One-vs-All", model_ova),
+    ("One-vs-One", model_ovo),
+    ("Multinomial", model_soft)
+]:
+    prediction = model.predict(X_test)
+    print(
+        "%-12s accuracy %.2f%%" %
+        (name, 100 * accuracy_score(y_test, prediction))
+    )
+
+y_pred_ovo = model_ovo.predict(X_test)
+
+print(confusion_matrix(y_test, y_pred_ovo))
+print(classification_report(y_test, y_pred_ovo, digits=3))
+ 
+05. ORDINAL REGRESSION – OBESITY DATASET
+import pandas as pd
+import numpy as np
+from statsmodels.miscmodels.ordinal_model import OrderedModel
+
+data = pd.read_csv("Obesity_level_prediction_dataset.csv")
+
+order = [
+    "Insufficient_Weight",
+    "Normal_Weight",
+    "Overweight_Level_I",
+    "Overweight_Level_II",
+    "Obesity_Type_I",
+    "Obesity_Type_II",
+    "Obesity_Type_III"
+]
+
+data["obesity"] = pd.Categorical(
+    data["NObeyesdad"],
+    categories=order,
+    ordered=True
+)
+
+data["Gender_M"] = (
+    data["Gender"] == "Male"
+).astype(float)
+
+data["FamHist"] = (
+    data["family_history_with_overweight"] == "yes"
+).astype(float)
+
+data["HighCalor"] = (
+    data["FAVC"] == "yes"
+).astype(float)
+
+feats = [
+    "Age", "FCVC", "NCP", "CH2O", "FAF", "TUE",
+    "Gender_M", "FamHist", "HighCalor"
+]
+
+model = OrderedModel(
+    data["obesity"],
+    data[feats],
+    distr="logit"
+)
+
+res = model.fit(
+    method="bfgs",
+    disp=False
+)
+
+print(res.summary())
+
+print(
+    "\nodds ratios:\n",
+    np.exp(res.params[:len(feats)]).sort_values().round(4)
+)
+
+cuts = model.transform_threshold_params(
+    res.params[len(feats):].values
+)
+
+print("\ncut-points:", np.round(cuts, 3))
+
+probs = np.asarray(
+    res.predict(data[feats].iloc[[0]])
+).ravel()
+
+for level, p in zip(order, probs):
+    print("%-22s %.4f" % (level, p))
+
+pred = np.asarray(
+    res.predict(data[feats])
+).argmax(1)
+
+true = data["obesity"].cat.codes.values
+
+print(
+    "\nexact accuracy: %.4f" %
+    (pred == true).mean()
+)
+
+print(
+    "within one category: %.4f" %
+    (np.abs(pred - true) <= 1).mean()
+)
+ 
+06. DECISION TREE CLASSIFICATION – DRUG DATASET
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier, plot_tree, export_text
+from sklearn import metrics
+
+my_data = pd.read_csv("drug200.csv")
+my_data.info()
+
+le = LabelEncoder()
+
+for col in ["Sex", "BP", "Cholesterol"]:
+    my_data[col] = le.fit_transform(my_data[col])
+
+my_data["Drug_num"] = my_data["Drug"].map({
+    "drugA": 0,
+    "drugB": 1,
+    "drugC": 2,
+    "drugX": 3,
+    "drugY": 4
+})
+
+print(
+    my_data.drop(["Drug"], axis=1).corr()["Drug_num"]
+)
+
+print(my_data["Drug"].value_counts())
+
+y = my_data["Drug"]
+X = my_data.drop(["Drug", "Drug_num"], axis=1)
+
+X_trainset, X_testset, y_trainset, y_testset = train_test_split(
+    X,
+    y,
+    test_size=0.3,
+    random_state=32
+)
+
+drugTree = DecisionTreeClassifier(
+    criterion="entropy",
+    max_depth=4,
+    random_state=32
+)
+
+drugTree.fit(X_trainset, y_trainset)
+
+tree_predictions = drugTree.predict(X_testset)
+
+print(
+    "Accuracy:",
+    metrics.accuracy_score(y_testset, tree_predictions)
+)
+
+print(
+    export_text(
+        drugTree,
+        feature_names=list(X.columns)
+    )
+)
+
+print(
+    pd.Series(
+        drugTree.feature_importances_,
+        index=X.columns
+    )
+)
+
+plt.figure(figsize=(14, 8))
+
+plot_tree(
+    drugTree,
+    feature_names=list(X.columns),
+    class_names=sorted(y.unique()),
+    filled=True,
+    rounded=True
+)
+
+plt.show()
+
+for d in [2, 3, 4, 5]:
+    t = DecisionTreeClassifier(
+        criterion="entropy",
+        max_depth=d,
+        random_state=32
+    ).fit(X_trainset, y_trainset)
+
+    print(
+        "depth %d -> train %.4f | test %.4f" %
+        (
+            d,
+            t.score(X_trainset, y_trainset),
+            t.score(X_testset, y_testset)
+        )
+    )
+ 
+07. SUPPORT VECTOR MACHINE (SVM) – IRIS DATASET
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn import datasets
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix
+)
+
+iris = datasets.load_iris()
+x, y = iris.data, iris.target
+
+x_train, x_test, y_train, y_test = train_test_split(
+    x,
+    y,
+    test_size=0.2,
+    random_state=42,
+    stratify=y
+)
+
+scaler = StandardScaler()
+
+x_train_scaled = scaler.fit_transform(x_train)
+x_test_scaled = scaler.transform(x_test)
+
+evaluation_model = SVC(
+    kernel="rbf",
+    C=1.0,
+    random_state=42
+)
+
+evaluation_model.fit(x_train_scaled, y_train)
+
+y_pred = evaluation_model.predict(x_test_scaled)
+
+accuracy = accuracy_score(y_test, y_pred)
+
+print("=== SVM MODEL EVALUATION REPORT ===")
+print(
+    f"Overall Model Accuracy: {accuracy * 100:.2f}%\n"
+)
+
+print(
+    classification_report(
+        y_test,
+        y_pred,
+        target_names=iris.target_names
+    )
+)
+
+print(confusion_matrix(y_test, y_pred))
+
+print(
+    "support vectors per class:",
+    evaluation_model.n_support_
+)
+
+print(
+    "total:",
+    len(evaluation_model.support_),
+    "of",
+    len(x_train)
+)
+
+print(
+    "linear kernel accuracy: %.4f" %
+    SVC(
+        kernel="linear",
+        C=1.0
+    ).fit(
+        x_train_scaled,
+        y_train
+    ).score(
+        x_test_scaled,
+        y_test
+    )
+)
+
+for C in [0.1, 1, 10, 100]:
+    m = SVC(
+        kernel="rbf",
+        C=C
+    ).fit(
+        x_train_scaled,
+        y_train
+    )
+
+    print(
+        "C=%-5s train %.4f | test %.4f | SVs %d" %
+        (
+            C,
+            m.score(x_train_scaled, y_train),
+            m.score(x_test_scaled, y_test),
+            len(m.support_)
+        )
+    )
+ 
+08. K-NEAREST NEIGHBOURS (KNN) – TELECOM CUSTOMER DATASET
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    classification_report
+)
+
+df = pd.read_csv("teleCust1000t.csv")
+
+print(df.head())
+print(df["custcat"].value_counts())
+
+X = df[
+    [
+        "region", "tenure", "age", "marital", "address",
+        "income", "ed", "employ", "retire", "gender", "reside"
+    ]
+].values.astype(float)
+
+y = df["custcat"].values
+
+X_norm = StandardScaler().fit_transform(X)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X_norm,
+    y,
+    test_size=0.2,
+    random_state=4
+)
+
+k = 4
+
+neigh = KNeighborsClassifier(
+    n_neighbors=k
+).fit(X_train, y_train)
+
+print(
+    "Train:",
+    accuracy_score(y_train, neigh.predict(X_train))
+)
+
+print(
+    "Test:",
+    accuracy_score(y_test, neigh.predict(X_test))
+)
+
+Ks = 30
+
+mean_acc = np.zeros(Ks - 1)
+std_acc = np.zeros(Ks - 1)
+
+for n in range(1, Ks):
+    neigh = KNeighborsClassifier(
+        n_neighbors=n
+    ).fit(X_train, y_train)
+
+    yhat = neigh.predict(X_test)
+
+    mean_acc[n - 1] = accuracy_score(
+        y_test,
+        yhat
+    )
+
+    std_acc[n - 1] = (
+        np.std(yhat == y_test)
+        / np.sqrt(yhat.shape[0])
+    )
+
+plt.plot(range(1, Ks), mean_acc)
+
+plt.fill_between(
+    range(1, Ks),
+    mean_acc - std_acc,
+    mean_acc + std_acc,
+    alpha=0.10
+)
+
+plt.xlabel("Number of Neighbours (K)")
+plt.ylabel("Accuracy")
+plt.show()
+
+best = mean_acc.argmax() + 1
+
+print(
+    "Best accuracy %.4f at k = %d" %
+    (mean_acc.max(), best)
+)
+
+final = KNeighborsClassifier(
+    n_neighbors=best
+).fit(X_train, y_train)
+
+pred = final.predict(X_test)
+
+print(confusion_matrix(y_test, pred))
+print(classification_report(y_test, pred, digits=3))
+ 
+09. K-MEANS CLUSTERING – IRIS DATASET
+import pandas as pd
+import numpy as np
+import seaborn as sns
+from matplotlib import pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.datasets import load_iris
+from sklearn.metrics import silhouette_score
+
+iris = load_iris()
+x = iris.data
+
+wcss = []
+
+for i in range(1, 11):
+    kmeans = KMeans(
+        n_clusters=i,
+        init="k-means++",
+        random_state=42
+    )
+
+    kmeans.fit(x)
+    wcss.append(kmeans.inertia_)
+
+plt.figure(figsize=(6, 4))
+
+plt.plot(
+    range(1, 11),
+    wcss,
+    marker="o",
+    linestyle="--"
+)
+
+plt.title("Elbow Method")
+plt.xlabel("Number of clusters")
+plt.ylabel("WCSS")
+plt.show()
+
+for k in [2, 3, 4, 5]:
+    labels = KMeans(
+        n_clusters=k,
+        init="k-means++",
+        random_state=42
+    ).fit_predict(x)
+
+    print(
+        "k=%d silhouette %.4f" %
+        (k, silhouette_score(x, labels))
+    )
+
+kmeans = KMeans(
+    n_clusters=3,
+    init="k-means++",
+    random_state=42
+)
+
+y_kmeans = kmeans.fit_predict(x)
+
+centers = kmeans.cluster_centers_
+
+print("Cluster Centers:
+", centers)
+
+print(
+    "inertia: %.3f | iterations: %d" %
+    (kmeans.inertia_, kmeans.n_iter_)
+)
+
+plt.figure(figsize=(8, 6))
+
+plt.scatter(
+    x[:, 2],
+    x[:, 3],
+    c=y_kmeans,
+    cmap="viridis",
+    s=60,
+    alpha=0.8,
+    edgecolors="black",
+    label="Data Points"
+)
+
+plt.scatter(
+    centers[:, 2],
+    centers[:, 3],
+    c="red",
+    s=200,
+    marker="X",
+    edgecolors="black",
+    label="Centroids"
+)
+
+plt.xlabel("Petal length (cm)")
+plt.ylabel("Petal width (cm)")
+plt.title("K-Means Clusters")
+plt.legend()
+plt.show()
+
+print(
+    pd.crosstab(
+        pd.Series(y_kmeans, name="cluster"),
+        pd.Series(
+            iris.target_names[iris.target],
+            name="species"
+        )
+    )
+)
+ 
+PACKAGES AND IMPORTS
+# INSTALL PACKAGES
+!pip install pandas numpy matplotlib seaborn scikit-learn statsmodels
+
+# IMPORT PACKAGES
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.api as sm
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, LabelEncoder, OneHotEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.multiclass import OneVsRestClassifier, OneVsOneClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, mean_squared_error, mean_absolute_error, r2_score, log_loss, roc_auc_score, roc_curve, silhouette_score
+from sklearn.tree import DecisionTreeClassifier, plot_tree, export_text
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.cluster import KMeans
+from sklearn.datasets import load_iris
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.miscmodels.ordinal_model import OrderedModel
