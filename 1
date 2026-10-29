@@ -1,244 +1,532 @@
-Portfolio Analysis – Python Codes
-1. Import Libraries
+# =====================================================================
+# PROGRAM 1: RANDOM FOREST AND XGBOOST (IRIS)
+# =====================================================================
+ 
+import pandas as pd
 import numpy as np
-import pandas as pd  
-import seaborn as sns
 import matplotlib.pyplot as plt
-import yfinance as yf
-import statsmodels.api as sm
-2. Download Stock and Market Data
-tickers = ["INFY.NS", "HINDUNILVR.NS", "RELIANCE.NS", "SBIN.NS"]
-market_ticker = "^NSEI"
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import load_iris
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.ensemble import RandomForestClassifier
  
-all_tickers = tickers+ [market_ticker]
+# Random Forest: load data, split, train, predict, evaluate
+data = load_iris()
+X = data.data
+y = data.target
  
-prices = pd.DataFrame()
-for t in all_tickers:
-    prices[t] = yf.download(t, start ="2021-01-01", end="2026-08-01")["Close"].squeeze() #1D
+# splitting the data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
  
-prices.head()
-3. Calculate Daily Returns
-all_returns = prices.pct_change().dropna() #drop the first row(no prior day to compare to)
-## another code - 
-daily_returns = all_returns[tickers] # the 4 stocks
-market_returns = all_returns[market_ticker] #nifty 50 index
+# create a Random Forest Classifier
+rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_classifier.fit(X_train, y_train)
  
-daily_returns.head()
-4. Preview Market Returns
-market_returns.head()
-5. Calculate Annualized Stock Returns
-annual_returns = daily_returns.mean()* 252
-print("Annualized expected return per stock:")
-print((annual_returns*100).round(2).astype(str) + "%")
-6. Calculate Nifty 50 Annualized Return
-market_annual_return = market_returns.mean() * 252
-print(f"Nifty 50 annualized return: {market_annual_return*100:.2f} %")
-7. Calculate Equal-Weight Portfolio Return
-weights = np.array([0.25,0.25,0.25,0.25]) #suare brackets means a list. Equal-2weight portfolio
+y_pred = rf_classifier.predict(X_test)
  
-portfolio_return = np.dot(annual_returns, weights) #multiplying to arrays -matrix
-print(f"Portfolio expected return: {portfolio_return*100:.2f} %")
-8. Calculate the Covariance Matrix
-cov_matrix = daily_returns.cov() * 252 #annualised covariance matrix
-cov_matrix
-9. Calculate Portfolio Variance and Risk
-# To multiple covariance use @
-portfolio_variance = weights @ cov_matrix.values @ weights
-portfolio_volatility = portfolio_variance ** 0.5
+accuracy = accuracy_score(y_test, y_pred)
+classsification_report_str = classification_report(y_test, y_pred)
+print(f"Accuracy: {accuracy}")
+print(f"Classification Report:\n{classsification_report_str}")
  
-print(f"Portfolio variance: {portfolio_variance:.4f}")
-print(f"Portfolio volatility (risk): {portfolio_volatility*100:.2f} %")
-10. Measure Diversification Benefit
-individual_vols = np.sqrt(np.diag(cov_matrix.values))
-no_diversification_risk = np.dot(weights, individual_vols)
+# Import XGBoost and seaborn
+from xgboost import XGBClassifier, plot_importance
+import seaborn as sns
  
-print(f"Portfolio risk (with diversification):  {portfolio_volatility*100:.2f} %")
-print(f"Risk if no diversification benefit:     {no_diversification_risk*100:.2f} %")
-print(f"Diversification benfit:                 {(no_diversification_risk-portfolio_volatility)*100:.2f} percentage points")
-11. Calculate the Correlation Matrix
-corr_matrix = daily_returns.corr()
-corr_matrix
-12. Prepare the Correlation Heatmap
-# seaborn is best for heatmap
-13. Plot the Correlation Heatmap
-plt.figure(figsize=(6,5))
-sns.heatmap(corr_matrix, annot = True, fmt= ".2f", cmap="coolwarm", vmin=-1, vmax=1,
-           xticklabels=tickers, yticklabels=tickers)
-plt.title("Correlation Matrix of Daily Returns")
+# XGBoost: split, train, predict, evaluate, feature importance
+X = data.data
+y = data.target
+ 
+# splitting the data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.35, random_state=42)
+ 
+xgb_classifier = XGBClassifier(objective='multi:softprob', num_class=3,
+                              eval_metric='mlogloss', random_state=42,
+                              use_label_encoder=False)
+xgb_classifier.fit(X_train, y_train)
+ 
+y_pred_xgb = xgb_classifier.predict(X_test)
+ 
+print(f"XGBoost Accuracy: {accuracy_score(y_test, y_pred_xgb)}")
+print(f"XGBoost Classification Report:\n{classification_report(y_test, y_pred_xgb)}")
+plot_importance(xgb_classifier)
+ 
+# Confusion matrix for XGBoost
+from sklearn.metrics import confusion_matrix
+ 
+cm = confusion_matrix(y_test, y_pred_xgb)
+ 
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+           xticklabels=data.target_names, yticklabels=data.target_names)
+plt.xlabel('Predicted')
+plt.ylabel('True')
+plt.title('Confusion Matrix')
+plt.show()
+ 
+ 
+# =====================================================================
+# PROGRAM 2: PIPELINE (SCALER + PCA + KNN + GRIDSEARCHCV)
+# =====================================================================
+ 
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+ 
+# Load the data
+data = load_iris()
+X, y = data.data, data.target
+labels = data.target_names
+ 
+# Create a simple pipeline (fixed settings)
+# instantiate a pipeline consisting of standard scaler, PCA and KNeighboursClassifier (this is done for explanation sake)
+pipeline = Pipeline([
+   ('scaler', StandardScaler()),  # step1- standardize the features
+   ('pca', PCA(n_components=2),),  # step2- reduce the dimensions to 2 using PCA
+   ('knn', KNeighborsClassifier(n_neighbors=5,))  # step3- K-Nearest neighbours classifier
+])
+ 
+# Split into train and test sets
+# split the data into training and testing sets
+x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+# stratify is to be included in pipeline programs
+ 
+# Train the pipeline and check accuracy
+# fit the pipeline into training set
+pipeline.fit(x_train, y_train)
+ 
+# measure the pipeline accuracy on the test data
+test_score = pipeline.score(x_test, y_test)
+print(f"{test_score:.3f}")
+ 
+# Get predictions
+# get the model predictions
+y_pred = pipeline.predict(x_test)
+ 
+# Plot confusion matrix
+# generate the confusion matrix for KNN model and plot it
+conf_matrix = confusion_matrix(y_test, y_pred)
+ 
+# create a plot for the confusion matrix
+plt.figure()
+sns.heatmap(conf_matrix, annot=True, cmap='Blues', fmt='d',
+           xticklabels=labels, yticklabels=labels)
+ 
+# set the title and labels
+plt.title("Classification pipeline confusion matrix")
+plt.xlabel('Predicted')
+plt.ylabel("Actual")
 plt.tight_layout()
 plt.show()
-14. Run Monte Carlo Simulation for Four Stocks
-RF_rate = 0.06  #risk free rate assumption, same as the study mat
  
-n_portfolios = 5000
-np.random.seed(42) #so results are reproducible
- 
-random_weights =  np.random.dirichlet(np.ones(len(tickers)), n_portfolios) #step 2 repeated 5000 times
- 
-port_returns = random_weights @ annual_returns.values  #step 3 (return)
-port_risks = np.sqrt(np.einsum('ij, jk, ik ->i', random_weights, cov_matrix.values, random_weights))  #step3 (risk)
-port_sharpes = (port_returns - RF_rate) / port_risks   #step 4
-15. Identify Maximum-Sharpe and Minimum-Risk Portfolios
-max_sharpe_idx = np.argmax(port_sharpes)
-min_risk_idx = np.argmin(port_risks)
- 
-print("Max Sharpe portfolio:")
-print(f"  Weights: {dict(zip(tickers,random_weights[max_sharpe_idx].round(3)))}")
-print(f"  Return: {port_returns[max_sharpe_idx]*100:.2f}%  Risk:  {port_risks[max_sharpe_idx]*100:.2f}%  Sharpe: {port_sharpes[max_sharpe_idx]:.3f}")
- 
-print("\nMin Risk (Minimum Variance) portfolio:")
-print(f" Weights: {dict(zip(tickers,random_weights[min_risk_idx].round(3)))}")
-print(f" Return: {port_returns [min_risk_idx]*100: 2f}% Risk: {port_risks[min_risk_idx] *108: .2f}%")
-16. Plot the Four-Stock Efficient Frontier
-plt.figure(figsize=(9, 6))
-plt.scatter(port_risks*100, port_returns*100, c=port_sharpes, cmap="viridis", s=8, alpha=0.6)
-plt.colorbar(label="Sharpe Ratio")
-plt.scatter(port_risks[max_sharpe_idx]*100, port_returns[max_sharpe_idx] *100,
-             color="gold", marker="*", s=300, edgecolor="black", label="Max Sharpe Portfolio")
-plt.scatter (port_risks[min_risk_idx] *100, port_returns[min_risk_idx]*100,
-              color="green", marker="*",s=300, edgecolor="black", label="Min Risk Portfolio")
-plt.xlabel ("Risk (%)")
-plt.ylabel("Expected Return (%) ")
-plt.title(f"Efficient Frontier -- (n_portfolios) Simulated Portfolios")
-plt.legend()
-plt.grid(True)
-plt.show()
-17. Estimate Individual Stock Betas and Alphas
-X = sm.add_constant(market_returns.rename("Market")) #adds the intercept term
- 
-betas = {}
-alphas = {} #we'll use these again in section 5
- 
-for t in tickers:
-    y = daily_returns[t]
-    model = sm.OLS(y,X).fit()
-    alphas[t] = model.params["const"]
-    betas [t] = model.params["Market"]
- 
-betas = pd.Series(betas)
-print("Beta of each stock (systematic risk vs. Nifty 50):")
-print(betas.round(3))
-    
-18. Calculate Portfolio Beta
-portfolio_beta = np.dot(betas.values, weights)
-print(f"Portfolio beta: {portfolio_beta:.3f}")
-19. Define Sharpe and Treynor Ratios
-def sharpe_ratio(port_return, port_volatility, rf=RF_rate):
-    return(port_return - rf) / port_volatility
- 
-def treynor_ratio(port_return, port_beta, rf=RF_rate):
-    return(port_return - rf) / port_beta
- 
-sharpe = sharpe_ratio(portfolio_return, portfolio_volatility)
-treynor = treynor_ratio(portfolio_return, portfolio_beta)
- 
-print(f"Sharpe Ratio:  {sharpe:.3f}")
-print(f"Treynor Ratio:  {treynor*100:.2f} % per unit of beta")
-20. Calculate CAPM Return and Jensen's Alpha
-capm_predicted_return = RF_rate + portfolio_beta* (market_annual_return - RF_rate)
-jensens_alpha = portfolio_return - capm_predicted_return
- 
-print(f"Market (Nifty 50) annualized return: {market_annual_return*100:.2f} %")
-print(f"Portfolio beta:                      {portfolio_beta:.3f}")
-print(f"CAPM-predicted portfolio return:     {capm_predicted_return*100:.2f} %")
-print(f"Actual portfolio return:             {portfolio_return*100:.2f} %")
-print(f"Jensen's Alpha:                      {jensens_alpha*100:.2f} %")
- 
-if jensens_alpha > 0:
-    print("\n--> Positive alpha: the portfolio outperformed what CAPM predicts for its risk level.")
-else:
-    print("\n--> Negative alpha: the portfolio underperformed what CAPM predicts for its risk level.")
-21. Summarize Annualized Alpha
-alpha_summary = pd.DataFrame({
-    "Beta": betas,
-    "Daily Alpha": pd.Series(alphas),
-})
-alpha_summary["Annualised Alpha (%)"] = (
-    alpha_summary["Daily Alpha"]* 252 * 100
+# Create the actual pipeline (no parameters yet)
+# make the pipeline without specifying any parameters yet (this is the actual code)
+pipeline = Pipeline(
+   [('scaler', StandardScaler()),
+    ('pca', PCA()),
+    ('knn', KNeighborsClassifier())
+    ]
 )
-alpha_summary[["Beta","Annualised Alpha (%)"]].round(3)
  
-
+# Define the parameter grid
+# define a model parameter grid to search over
+param_grid = {'pca__n_components': [2, 3],
+             'knn__n_neighbors': [3, 5, 6]
+             }
  
-
-Extension: Monte Carlo Simulation Across All Nifty 50 Stocks
-1. Get Nifty 50 Constituents
-url="https://en.wikipedia.org/wiki/NIFTY_50" 
-tables=pd.read_html(url,storage_options={"User-Agent": "Mozilla/5.0 Chrome/120.0"}) 
+# Choose cross-validation method
+# choose a cross validation method
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
  
-nifty50_table=tables[1] 
-nifty50_tickers=(nifty50_table["Symbol"]+".NS").tolist() 
+# Set up GridSearchCV
+# determine the best parameters
+best_model = GridSearchCV(estimator=pipeline, param_grid=param_grid, cv=cv,
+                         scoring='accuracy', verbose=2)
  
-print(f"Found {len(nifty50_tickers)} Nifty 50 constituents") 
-print(nifty50_tickers)
-2. Download Prices for Nifty 50 Stocks
-nifty50_prices = pd.DataFrame()
-failed_tickers = []
+# Fit GridSearchCV on training data
+# fit the best gridsearchcv model to the training data
+best_model.fit(x_train, y_train)
  
-for t in nifty50_tickers:
-    try:
-     nifty50_prices[t] = yf.download(t,start="2021-01-01", end="2026-08-01")['Close'].squeeze()
-    except Exception:
-        failed_tickers.append(t)
-print(f"Downloaded {nifty50_prices.shape[1]} stocks successfully")
-if failed_tickers:
-    print(f"Failed to download:{failed_tickers}")
-        
-3. Clean the Price Data
-nifty50_prices_clean = nifty50_prices.dropna(axis = 1)
-dropped = set(nifty50_prices.columns) - set(nifty50_prices_clean.columns)
-print(f"Stocks with complete data: {nifty50_prices_clean.shape[1]} out of {nifty50_prices.shape[1]}")
-if dropped:
-    print(f"Dropped (incomplete data): {sorted(dropped)}")
-4. Calculate Daily Returns, Annualized Returns, and Covariance
-nifty50_daily_returns = (nifty50_prices_clean/nifty50_prices_clean.shift(1) - 1).dropna()
-nifty50_annual_returns = nifty50_daily_returns.mean()*252
-nifty50_cov_matrix = nifty50_daily_returns.cov()* 252
+# Evaluate the best model on the test set
+# evaluate the accuracy of the best model on the test set
+test_score = best_model.score(x_test, y_test)
+print(f"{test_score:.3f}")
  
-print(f"Universe size: {len(nifty_annual_returns)} stocks")
-print(f"Highest annualized return: {nifty_annual_returns.idxmax()} at {nifty_annual_returns.max()*100:.1f}%")
-print(f"Lowest annualized return: {nifty_annual_returns.idxmin()} at {nifty_annual_returns.min()*100:.1f}%")
-5. Simulate 30,000 Portfolios
-n_assets = len(nifty_annual_returns)
-n_portfolios_big = 30000
-np.random.seed(42)
+# Display the best parameters
+# display the best parameters (in case it doesn't come in the dropdown)
+best_model.best_params_
  
-nifty50_weights = np.random.dirichlet(np.ones(n_assets), n_portfolios_big)
  
-nifty50_port_returns = nifty50_weights @ nifty50_annual_returns.values  
-nifty50_port_risks = np.sqrt(np.einsum('ij, jk, ik ->i', nifty50_weights, nifty50_cov_matrix.values, nifty50_weights)) 
-nifty50_port_sharpes = (nifty50_port_returns - RF_rate) / nifty50_port_risks
-6. Identify the Best Simulated Portfolio
-nifty50_max_sharpe_idx = np.argmax(nifty50_port_sharpes)
-nifty50_min_risk_idx = np.argmin(nifty50_port_risks)
+# =====================================================================
+# PROGRAM 3: RANDOM FOREST AND XGBOOST (STEP BY STEP)
+# =====================================================================
  
-best_weights = pd.Series(nifty50_weights[nifty50_max_sharpe_idx],index=nifty50_annual_returns.index)
-top_10_holdings = best_weights.sort_values(ascending=False).head(10)
+import pandas as pd
+import numpy as np
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.datasets import load_iris
+from xgboost import XGBClassifier, plot_importance
+import matplotlib.pyplot as plt
  
-print ("Best simulated portfolio (highest Sharpe ratio):")
-print (f" Return: (nifty50_port_returns[nifty50_max_sharpe_idx]*100: 2f]%")
-print(f" Risk: (nifty50_port_risks[nifty50_max_sharpe_idx]*100:.2f)%")
-print (f" Sharpe: (nifty50_port_sharpes[nifty50_max sharpe_idx]: 3f) ")
-print(" \nTop 10 holdings by weight:")
-print ((top_10_holdings*100). round (2). astype(str) + " %")
-7. Plot the Top 10 Holdings
-top_10_holdings.plot(kind="barh", figsize=(7,5), color="steelblue")
-plt.xlabel("Portfolio weight")
-plt.ylabel("top 10 holdings- Best Simulated Nifty 50 Portfolio")
-plt.gca().invert_yaxis()
+# Load the dataset
+data = load_iris()
+X = data.data
+y = data.target
+ 
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.35, random_state=42)
+ 
+# Create a random forest classifier
+rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
+ 
+# Train the classifier on the training data
+rf_classifier.fit(X_train, y_train)
+ 
+# Make predictions on the testing data
+y_pred = rf_classifier.predict(X_test)
+ 
+# Evaluate the classifier
+accuracy = accuracy_score(y_test, y_pred)
+classification_rep = classification_report(y_test, y_pred)
+print(f'Accuracy: {accuracy:.2f}')
+print('classification Report:')
+print(classification_rep)
+ 
+# Install XGBoost
+!pip install xgboost
+ 
+# Load Iris with feature and target names
+iris = load_iris()
+X = iris.data
+y = iris.target
+feature_names = iris.feature_names
+target_names = iris.target_names
+ 
+# Convert features to a dataframe so XGBoost tracks the actual names
+X_df = pd.DataFrame(X, columns=feature_names)
+ 
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_df, y, test_size=0.2, random_state=42)
+ 
+# Initialize and train XGBoost Classifier
+model = XGBClassifier(
+   objective="multi:softprob",
+   num_class=3,
+   random_state=42,
+   eval_metric="mlogloss",
+)
+model.fit(X_train, y_train)
+ 
+# Predict on the test data
+y_pred = model.predict(X_test)
+ 
+# Print standard evaluation text metrics
+print(f"XGBoost Accuracy: {accuracy_score(y_test, y_pred) * 100:.2f}%\n")
+print(classification_report(y_test, y_pred, target_names=target_names))
+ 
+# Build the confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+ 
+# Plot the confusion matrix
+plt.figure(figsize=(6, 4.5))
+sns.heatmap(
+   cm,
+   annot=True,
+   fmt="d",
+   cmap="Blues",
+   xticklabels=target_names,
+   yticklabels=target_names,
+   cbar=False,
+   annot_kws={"size": 14, "weight": "bold"},
+)
+plt.title("XGBoost Classification confusion matrix", fontsize=14, pad=15)
+plt.xlabel("Predicted Species Group", fontsize=12)
+plt.ylabel("Actual Species Group", fontsize=12)
 plt.tight_layout()
 plt.show()
-8. Plot the Efficient Frontier
-plt.figure(figsize=(9,6))
-plt.scatter(nifty50_port_risks*100, nifty50_port_returns*100, c=nifty50_port_sharpes, cmap="viridis", s=10, alpha=0.5)
-plt.colorbar(label="Sharpe Ratio")
-plt.scatter(nifty50_port_risks[nifty50_max_sharpe_idx]*100, nifty50_port_returns[nifty50_max_sharpe_idx]*100,
-            color="green", marker="*",s=50, edgecolor="black", label="Max Sharpe Portfolio")
-plt.scatter(nifty50_port_risks[nifty50_min_risk_idx]*100, nifty50_port_returns[nifty50_min_risk_idx]*100,
-            color="gold", marker="*", s=50, edgecolor="black", label="Min Rish Portfolio")
-plt.xlabel("Risk(%)")
-plt.ylabel("Expected Return (%)")
-plt.title(f"Efficient Frontier -- {n_portfolios_big:,} Simulated Portfolios Accross {n_assets} Nifty 50 stocks")
-plt.legend()
-plt.grid(True)
-plt.show()
+ 
+ 
+# =====================================================================
+# PROGRAM 4: SENTIMENT ANALYSIS - NAIVE BAYES VS LOGISTIC REGRESSION (TEXT)
+# =====================================================================
+ 
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import accuracy_score
+ 
+# Create the text dataset
+data = {
+   'text': [
+       "I absolutely love this product, it works perfectly!",
+       "This is the worst purchase I have ever made.",
+       "It's okay, nothing special but does the job",
+       "Fantastic customer service and beautiful design",
+       "Horrible quality, it broke on the first day",
+       "I am highly satisfied with the fast shipping",
+       "Waste of money. do not but this product",
+       "Pretty good value for the price, I recommend it",
+       "item arrived late and the product was damaged, very disappointed"
+   ],
+   'sentiment': ['positive', 'negative', 'neutral', 'positive', 'negative',
+                 'positive', 'negative', 'positive', 'negative']
+}
+ 
+# load into a pandas dataframe
+df = pd.DataFrame(data)
+ 
+# 1. split dataset into features (X) and target labels (Y)
+x = df['text']
+y = df['sentiment']
+ 
+# 2. split into training and testing
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+ 
+# 3. text vectorization (TF-IDF feature extraction)
+vectorizer = TfidfVectorizer(stop_words='english', lowercase=True)
+x_train_vec = vectorizer.fit_transform(x_train)
+x_test_vec = vectorizer.transform(x_test)
+ 
+# 4. initialize and train classifiers
+lr_model = LogisticRegression()
+lr_model.fit(x_train_vec, y_train)
+ 
+nb_model = MultinomialNB()
+nb_model.fit(x_train_vec, y_train)
+ 
+# 5. evaluate and compare models
+lr_preds = lr_model.predict(x_test_vec)
+nb_preds = nb_model.predict(x_test_vec)
+ 
+print("Model Accuracy Comparison")
+print(f"Logistic Regression Accuracy:{accuracy_score(y_test, lr_preds)*100:.2f}%")
+print(f"Multinomial Naive Bayes Accuracy:{accuracy_score(y_test, nb_preds)*100:.2f}%\n")
+ 
+# 6. predict sentiment on new custom texts
+def predict_sentiment(new_texts):
+   new_texts_vec = vectorizer.transform(new_texts)
+   lr_predictions = lr_model.predict(new_texts_vec)
+   nb_predictions = nb_model.predict(new_texts_vec)
+ 
+   print("testing custom input")
+   for text, lr_pred, nb_pred in zip(new_texts, lr_predictions, nb_predictions):
+       print(f"Text: '{text}'")
+       print(f"LR Prediction:**{lr_pred.upper()}**")
+       print(f"NB Prediction:**{nb_pred.upper()}**\n")
+ 
+# Test with custom samples
+custom_samples = ["The item arrived broken and late",
+                 "it wokrs incredibly well, love it!",
+                 "looks good"]
+predict_sentiment(custom_samples)
+ 
+ 
+# =====================================================================
+# PROGRAM 5: MULTINOMIAL NAIVE BAYES ON THE 20 NEWSGROUPS DATASET
+# =====================================================================
+ 
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import accuracy_score, classification_report
+ 
+# load the 20 newsgroup dataset
+newsgroups = fetch_20newsgroups(subset='all')
+x, y = newsgroups.data, newsgroups.target
+ 
+# split the dataset into training and testing sets
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+ 
+# initialize the TfidfVectorizer
+vectorizer = TfidfVectorizer(stop_words='english', max_df=0.5)
+ 
+# fit and transform the training data and transform the test data
+x_train_tfidf = vectorizer.fit_transform(x_train)
+x_test_tfidf = vectorizer.transform(x_test)
+ 
+# initialize the multinomial naive bayes classifier
+nb_classifier = MultinomialNB()
+ 
+# train the classifier on the training data
+nb_classifier.fit(x_train_tfidf, y_train)
+ 
+# predict the labels for the test data
+y_pred = nb_classifier.predict(x_test_tfidf)
+ 
+# calculate the accuracy
+accuracy = accuracy_score(y_test, y_pred)
+ 
+# generate a classification report
+class_report = classification_report(y_test, y_pred, target_names=newsgroups.target_names)
+ 
+print(f"Accuracy:{accuracy}\n")
+print(f"Classification Report:\n{class_report}")
+ 
+ 
+# =====================================================================
+# PROGRAM 6: GAUSSIAN NAIVE BAYES ON THE IRIS DATASET (+ CREDIT CARD DATA LOAD)
+# =====================================================================
+ 
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.datasets import load_iris
+from sklearn.metrics import accuracy_score, classification_report
+ 
+# Load the data set
+iris = load_iris()
+x = iris.data
+y = iris.target
+ 
+# split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+ 
+# 3. Initialize and train the Naive Bayes model
+model = GaussianNB()
+model.fit(X_train, y_train)
+ 
+# 4. Make predictions on the test set
+y_pred = model.predict(X_test)
+ 
+# 5. Evaluate the model's performance
+print(f"Accuracy: {accuracy_score(y_test, y_pred)*100:.2f}%")
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+ 
+# Load the credit card dataset
+import pandas as pd
+ 
+raw_data = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\creditcard(in).csv")
+raw_data
+ 
+# Separate features (X) and target (y)
+X = raw_data.drop("Class", axis=1)
+y = raw_data["Class"]
+ 
+ 
+# =====================================================================
+# PROGRAM 7: CHURN PREDICTION - RANDOM FOREST, GRADIENT BOOSTING, XGBOOST WITH CROSS-VALIDATION
+# =====================================================================
+ 
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, cross_val_score, KFold
+from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.metrics import (classification_report, confusion_matrix,
+                            accuracy_score, ConfusionMatrixDisplay)
+from xgboost import XGBClassifier
+ 
+# Load data
+df = pd.read_excel(r"D:\MSC BA\SEM 3\ClassWork\MLM\ChurnData.xlsx")
+df.head()
+ 
+# Set the target column
+target_col = 'churn'
+if target_col not in df.columns:
+   target_col = df.columns[-1]
+   print(f"'{target_col}' not found. Using the last column '{target_col}' as target")
+ 
+# Handle Missing Values
+df = df.dropna()
+ 
+# Encode categorical text variables
+le = LabelEncoder()
+for col in df.select_dtypes(include=['object']).columns:
+   df[col] = le.fit_transform(df[col])
+ 
+# Split features and target
+X = df.drop(columns=[target_col])
+y = df[target_col]
+ 
+# Split into train/test sets (80/20 split)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,
+                                                   random_state=42, stratify=y)
+ 
+# Feature scaling (optional for tree-based models, required for SVM, Logistic Regression, etc.)
+# scaler = StandardScaler()
+# X_train = scaler.fit_transform(X_train)
+# X_test = scaler.transform(X_test)
+ 
+# Model Initialization
+models = {
+   'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
+   'Gradient Boosting': GradientBoostingClassifier(n_estimators=100, random_state=42),
+   'XGBoost': XGBClassifier(n_estimators=100, learning_rate=0.1, random_state=42,
+                            eval_metric='logloss', use_label_encoder=False)
+}
+ 
+# evaluate models using cross-validation loop
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+ 
+for name, model in models.items():
+   print(f"Model: {name}")
+ 
+   # Fit model
+   model.fit(X_train, y_train)
+ 
+   # Predict on test set
+   y_pred = model.predict(X_test)
+ 
+   # Evaluate model
+   print("Classification Report:")
+   print(classification_report(y_test, y_pred))
+ 
+   print("Confusion Matrix:")
+   cm = confusion_matrix(y_test, y_pred)
+   disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+   disp.plot()
+   plt.title(f'Confusion Matrix for {name}')
+   plt.show()
+ 
+   # Cross-validation scores
+   cv_scores = cross_val_score(model, X, y, cv=kf)
+   print(f"Cross-validation scores: {cv_scores}")
+   print(f"Mean CV score: {np.mean(cv_scores)}",
+         f"Standard Deviation of CV scores: {np.std(cv_scores)}")
+   print("-" * 50)
+ 
+# Top 5 feature importance
+print(" Top 5 Feature Importance:")
+importances = model.feature_importances_
+indices = np.argsort(importances)[::-1]
+for i in range(min(5, len(X.columns))):
+   print(f"{i + 1}. Feature: {X.columns[indices[i]]}, Importance: {importances[indices[i]]:.4f}")
+ 
+ 
+# =====================================================================
+# LIBRARY IMPORTS
+# =====================================================================
+ 
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+ 
+from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold, cross_val_score, KFold
+from sklearn.datasets import load_iris, fetch_20newsgroups
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.preprocessing import StandardScaler, LabelEncoder, normalize
+from sklearn.decomposition import PCA
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB, GaussianNB
+from xgboost import XGBClassifier, plot_importance
